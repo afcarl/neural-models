@@ -1,9 +1,11 @@
+import keras as K
 from keras.models import Sequential
 from keras.layers.core import Flatten, Dense, Dropout
 from keras.layers.convolutional import Convolution2D, MaxPooling2D, ZeroPadding2D
 from keras.optimizers import SGD
 import cv2, numpy as np
 
+from scipy.misc import imread, imresize, imsave
 
 def convnet(network, weights_path=None, output_layers=None):
     """
@@ -50,7 +52,7 @@ def convnet(network, weights_path=None, output_layers=None):
         Dict of feature layers, asked for in output_layers.
     """
     if network == 'vgg_16':
-        model = VGG_16(weight_path)
+        model = VGG_16(weights_path)
         
     elif network == 'vgg_19':
         model = VGG_19(weights_path)
@@ -62,10 +64,13 @@ def convnet(network, weights_path=None, output_layers=None):
         outputs_dict = None
 
     else:
-        outputs_dict = dict([(layer.name, layer.get_output()) for layer in model.layers] \
-                            if layer.name in output_layers)
+        outputs_list = [layer.get_output(train=False) for layer in model.layers \
+                        if layer.name in output_layers]
 
-    return model, outputs_dict
+        output_func = K.function([model.layers[0].input],
+                                 [out for out in outputs_list])
+
+    return model, output_func
 
     
 def VGG_16(weights_path=None):
@@ -177,16 +182,43 @@ def VGG_19(weights_path=None):
 
 
 
+
+def preprocess_image(image_path, img_width, img_height):
+    img = imresize(imread(image_path), (img_width, img_height))
+    img = img.transpose((2, 0, 1)).astype('float64')
+    img[:, :, 0] -= 103.939
+    img[:, :, 1] -= 116.779
+    img[:, :, 2] -= 123.68
+    img = np.expand_dims(img, axis=0)
+    return img
+
+def deprocess_image(x):
+    x[:, :, 0] += 103.939
+    x[:, :, 1] += 116.779
+    x[:, :, 2] += 123.68
+    x = x.transpose((1, 2, 0))
+    x = np.clip(x, 0, 255).astype('uint8')
+    return x
+
+
+
+
 if __name__ == "__main__":
-    im = cv2.resize(cv2.imread('cat.jpg'), (224, 224)).astype(np.float32)
-    im[:,:,0] -= 103.939
-    im[:,:,1] -= 116.779
-    im[:,:,2] -= 123.68
-    im = im.transpose((2,0,1))
-    im = np.expand_dims(im, axis=0)
+
+    # base_image = K.variable(preprocess_image('~/Pictures/cat.jpg'))
+    im = preprocess_image('cat.jpg', 224, 224)
+
+    
+    # im0 = cv2.imread('~/Pictures/cat.jpg')
+    # im = cv2.resize(im0, (224, 224)).astype(np.float32)
+    # im[:,:,0] -= 103.939
+    # im[:,:,1] -= 116.779
+    # im[:,:,2] -= 123.68
+    # im = im.transpose((2,0,1))
+    # im = np.expand_dims(im, axis=0)
 
     # Test pretrained model
-    model = VGG_16('vgg16_weights.h5')
+    model, _ = convnet('vgg_16', 'vgg16_weights.h5')
     sgd = SGD(lr=0.1, decay=1e-6, momentum=0.9, nesterov=True)
     model.compile(optimizer=sgd, loss='categorical_crossentropy')
     out = model.predict(im)
