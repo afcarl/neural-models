@@ -112,9 +112,9 @@ def VGG_16(weights_path=None):
     model.add(MaxPooling2D((2,2), strides=(2,2)))
 
     model.add(Flatten())
-    model.add(Dense(4096, activation='relu'))
+    model.add(Dense(4096, activation='relu', name='dense_1'))
     model.add(Dropout(0.5))
-    model.add(Dense(4096, activation='relu'))
+    model.add(Dense(4096, activation='relu', name='dense_2'))
     model.add(Dropout(0.5))
     model.add(Dense(1000, activation='softmax'))
 
@@ -169,9 +169,9 @@ def VGG_19(weights_path=None):
     model.add(MaxPooling2D((2,2), strides=(2,2)))
 
     model.add(Flatten())
-    model.add(Dense(4096, activation='relu'))
+    model.add(Dense(4096, activation='relu', name='dense_1'))
     model.add(Dropout(0.5))
-    model.add(Dense(4096, activation='relu'))
+    model.add(Dense(4096, activation='relu', name='dense_2'))
     model.add(Dropout(0.5))
     model.add(Dense(1000, activation='softmax'))
 
