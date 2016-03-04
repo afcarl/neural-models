@@ -1,4 +1,4 @@
-import keras as K
+from keras import backend as K
 from keras.models import Sequential
 from keras.layers.core import Flatten, Dense, Dropout
 from keras.layers.convolutional import Convolution2D, MaxPooling2D, ZeroPadding2D
@@ -183,14 +183,19 @@ def VGG_19(weights_path=None):
 
 
 
-def preprocess_image(image_path, img_width, img_height):
-    img = imresize(imread(image_path), (img_width, img_height))
-    img = img.transpose((2, 0, 1)).astype('float64')
-    img[:, :, 0] -= 103.939
-    img[:, :, 1] -= 116.779
-    img[:, :, 2] -= 123.68
-    img = np.expand_dims(img, axis=0)
-    return img
+def preprocess_image_batch(image_paths, img_width, img_height):
+    img_list = []
+    for im_path in image_paths:
+        img = imresize(imread(im_path), (img_width, img_height))
+        img = img.transpose((2, 0, 1)).astype('float64')
+        img[:, :, 0] -= 103.939
+        img[:, :, 1] -= 116.779
+        img[:, :, 2] -= 123.68
+        #img = np.expand_dims(img, axis=0)
+        img_list.append(img)
+
+    img_batch = np.stack(img_list, axis=0)
+    return img_batch
 
 def deprocess_image(x):
     x[:, :, 0] += 103.939
