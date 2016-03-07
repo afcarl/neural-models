@@ -5,6 +5,9 @@ from keras.layers.convolutional import Convolution2D, MaxPooling2D, ZeroPadding2
 from keras.optimizers import SGD
 import numpy as np
 
+import pdb
+
+
 from scipy.misc import imread, imresize, imsave
 
 def convnet(network, weights_path=None, output_layers=None):
@@ -186,8 +189,12 @@ def VGG_19(weights_path=None):
 def preprocess_image_batch(image_paths, img_width, img_height):
     img_list = []
     for im_path in image_paths:
-        img = imresize(imread(im_path), (img_width, img_height))
-        img = img.transpose((2, 0, 1)).astype('float64')
+        
+        try:
+            img = imresize(imread(im_path, mode='RGB'), (img_width, img_height))
+            img = img.transpose((2, 0, 1)).astype('float32')
+        except:
+            pdb.set_trace()
         img[:, :, 0] -= 103.939
         img[:, :, 1] -= 116.779
         img[:, :, 2] -= 123.68
