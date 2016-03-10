@@ -1,16 +1,22 @@
+import numpy as np
+
 from keras import backend as K
 from keras.models import Sequential
 from keras.layers.core import Flatten, Dense, Dropout
 from keras.layers.convolutional import Convolution2D, MaxPooling2D, ZeroPadding2D
 from keras.optimizers import SGD
+from keras.layers.mylayers import Convolution2DGroup
 import numpy as np
 
 import pdb
 
 
+
+from os.path import join
+
 from scipy.misc import imread, imresize, imsave
 
-def convnet(network, weights_path=None, output_layers=None):
+def convnet(network, weights_path=None, output_layer=None):
     """
     Returns a keras model for a CNN.
     
@@ -20,19 +26,13 @@ def convnet(network, weights_path=None, output_layers=None):
     It can also be used to look at the hidden layers of the model.
 
     It can be used that way : 
-    >>> im = cv2.resize(cv2.imread('cat.jpg'), (224, 224)).astype(np.float32)
-    >>> im[:,:,0] -= 103.939
-    >>> im[:,:,1] -= 116.779
-    >>> im[:,:,2] -= 123.68
-    >>> im = im.transpose((2,0,1))
-    >>> im = np.expand_dims(im, axis=0)
+    >>> im = preprocess_img_batch(['cat.jpg'])
 
     >>> # Test pretrained model
-    >>> model = convnet('vgg16_weights.h5')
+    >>> model = convnet('vgg_16', 'vgg16_weights.h5', 'conv5_3')
     >>> sgd = SGD(lr=0.1, decay=1e-6, momentum=0.9, nesterov=True)
     >>> model.compile(optimizer=sgd, loss='categorical_crossentropy')
     >>> out = model.predict(im)
-    >>> print np.argmax(out)
 
     Parameters
     --------------
@@ -54,31 +54,37 @@ def convnet(network, weights_path=None, output_layers=None):
     output_dict:
         Dict of feature layers, asked for in output_layers.
     """
+
+    
+    # Select the network
     if network == 'vgg_16':
         model = VGG_16(weights_path)
         
     elif network == 'vgg_19':
         model = VGG_19(weights_path)
 
+    elif network == 'alexnet':
+        model=AlexNet()
     else:
-        ValueError("Network "+network+" is not known")
+        raise ValueError("Network "+network+" is not known")
 
-    if output_layers == None:
-        outputs_dict = None
 
+    # Select the output
+    if output_layer == None:
+        return model 
     else:
-        outputs_list = [layer.get_output(train=False) for layer in model.layers \
-                        if layer.name in output_layers]
+        # Check that the layer name exists
+        if not any(layer.name == output_layer for layer in model.layers):
+            raise ValueError("Layer "+output_layer+" does not exist in this network")
 
-        output_func = K.function([model.layers[0].input],
-                                 [out for out in outputs_list])
-
-    return model, output_func
+        while model.layers[-1].name != output_layer:
+            model.layers.pop()
+    return model
 
     
 def VGG_16(weights_path=None):
     model = Sequential()
-    model.add(ZeroPadding2D((1,1),input_shape=(3,224,224)))
+    model.add(ZeroPadding2D((1,1),input_shape=(3,224,224))) 
     model.add(Convolution2D(64, 3, 3, activation='relu', name='conv1_1'))
     model.add(ZeroPadding2D((1,1)))
     model.add(Convolution2D(64, 3, 3, activation='relu', name='conv1_2'))
@@ -123,7 +129,6 @@ def VGG_16(weights_path=None):
 
     if weights_path:
         model.load_weights(weights_path)
-
     return model
 
 
@@ -184,17 +189,79 @@ def VGG_19(weights_path=None):
     return model
 
 
+def AlexNet(weights_path=None):
+    model = Sequential()
+    pdb.set_trace()
+    model.add(ZeroPadding2D((0,0),input_shape=(3,227,227)))
+    model.add(Convolution2D(96, 11, 11, subsample=(4,4), activation='relu', name='conv_1'))
+    model.add(MaxPooling2D((3, 3), strides=(2,2)))
 
+    model.add(ZeroPadding2D((2,2)))
+    model.add(Convolution2DGroup(2,256,5,5, input_shape=model.output_shape, subsample=(1,1), activation='relu', name='conv_2'))
+    model.add(MaxPooling2D((3, 3), strides=(2, 2)))
 
-def preprocess_image_batch(image_paths, img_width, img_height):
+    model.add(ZeroPadding2D((1,1)))
+    model.add(Convolution2D(384,3,3, subsample=(1,1), activation='relu', name='conv_3'))
+
+    model.add(ZeroPadding2D((1,1)))
+    model.add(Convolution2DGroup(2,384,3,3, input_shape=model.output_shape, subsample=(1,1), activation='relu', name='conv_4'))
+
+    model.add(ZeroPadding2D((1,1)))
+    model.add(Convolution2DGroup(2,256,3,3, input_shape=model.output_shape, subsample=(1,1), activation='relu', name='conv_5'))
+    model.add(MaxPooling2D((3, 3), strides=(2,2)))
+
+    model.add(Flatten())
+    model.add(Dense(4096, activation='relu', name='dense_1'))
+    model.add(Dropout(0.5))
+
+    model.add(Dense(4096, activation='relu', name='dense_2'))
+    model.add(Dropout(0.5))
+
+    model.add(Dense(1000, activation='softmax', name='softmax'))
+
+    return model
+
+def load_coeff(path='parameters_releasing/'):
+    model = convnet('alexnet')
+    suf = '_65.npy'
+    W_list = []
+    b_list = []
+    for i in range(8):
+        if i in [1, 3, 4]:
+            W_list.append([load(path+'W0_'+str(i)+suf), load(path+'W1_'+str(i)+suf)])
+            b_list.append([load(path+'b0_'+str(i)+suf), load(path+'b1_'+str(i)+suf)])
+        else:
+            W_list.append(load(path+'W_'+str(i)+suf))
+            b_list.append(load(path+'b_'+str(i)+suf))
+
+    for i in range(1,6):
+        layer = next(layer for layer in model.layers if layer.name == 'conv_'+str(i))
+        if i in [2, 4, 5]:
+            conv0 = layer.nodes['conv0']
+            conv1 = layer.nodes['conv1']
+            conv0.set_weights([W_list[i-1][0], b_list[i-1][0]])
+            conv1.set_weights([W_list[i-1][1], b_list[i-1][1]])
+        else:
+            layer.set_weight([W_list[i-1], b_list[i-1]])
+
+    for i in range(1, 3):
+        layer = next(layer for layer in model.layers if layer.name == 'dense_'+str(i))
+        layer.set_weights([W_list[i+4], b_list[i+4]])
+
+    layer = next(layer for layer in model.layers if layer.name == 'dense_'+str(i))
+    layer.set_weights([W_list[7], b_list[7]])
+
+    return model
+        
+    
+              
+
+def preprocess_image_batch(image_paths, img_width=224, img_height=224):
     img_list = []
     for im_path in image_paths:
         
-        try:
-            img = imresize(imread(im_path, mode='RGB'), (img_width, img_height))
-            img = img.transpose((2, 0, 1)).astype('float32')
-        except:
-            pdb.set_trace()
+        img = imresize(imread(im_path, mode='RGB'), (img_width, img_height))
+        img = img.transpose((2, 0, 1)).astype('float32')
         img[:, :, 0] -= 103.939
         img[:, :, 1] -= 116.779
         img[:, :, 2] -= 123.68
@@ -218,20 +285,11 @@ def deprocess_image(x):
 if __name__ == "__main__":
 
     # base_image = K.variable(preprocess_image('~/Pictures/cat.jpg'))
-    im = preprocess_image('cat.jpg', 224, 224)
-
-    
-    # im0 = cv2.imread('~/Pictures/cat.jpg')
-    # im = cv2.resize(im0, (224, 224)).astype(np.float32)
-    # im[:,:,0] -= 103.939
-    # im[:,:,1] -= 116.779
-    # im[:,:,2] -= 123.68
-    # im = im.transpose((2,0,1))
-    # im = np.expand_dims(im, axis=0)
+    im = preprocess_image_batch(['cat.jpg'], 227, 227)
 
     # Test pretrained model
-    model, _ = convnet('vgg_16', 'vgg16_weights.h5')
+    model = convnet('alexnet')
     sgd = SGD(lr=0.1, decay=1e-6, momentum=0.9, nesterov=True)
     model.compile(optimizer=sgd, loss='categorical_crossentropy')
     out = model.predict(im)
-    print np.argmax(out)
+    print out
