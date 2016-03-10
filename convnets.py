@@ -8,7 +8,6 @@ from keras.optimizers import SGD
 from keras.layers.mylayers import Convolution2DGroup
 import numpy as np
 
-import pdb
 
 
 
@@ -191,7 +190,6 @@ def VGG_19(weights_path=None):
 
 def AlexNet(weights_path=None):
     model = Sequential()
-    pdb.set_trace()
     model.add(ZeroPadding2D((0,0),input_shape=(3,227,227)))
     model.add(Convolution2D(96, 11, 11, subsample=(4,4), activation='relu', name='conv_1'))
     model.add(MaxPooling2D((3, 3), strides=(2,2)))
@@ -219,39 +217,54 @@ def AlexNet(weights_path=None):
 
     model.add(Dense(1000, activation='softmax', name='softmax'))
 
-    return model
-
-def load_coeff(path='parameters_releasing/'):
-    model = convnet('alexnet')
-    suf = '_65.npy'
-    W_list = []
-    b_list = []
-    for i in range(8):
-        if i in [1, 3, 4]:
-            W_list.append([load(path+'W0_'+str(i)+suf), load(path+'W1_'+str(i)+suf)])
-            b_list.append([load(path+'b0_'+str(i)+suf), load(path+'b1_'+str(i)+suf)])
-        else:
-            W_list.append(load(path+'W_'+str(i)+suf))
-            b_list.append(load(path+'b_'+str(i)+suf))
-
-    for i in range(1,6):
-        layer = next(layer for layer in model.layers if layer.name == 'conv_'+str(i))
-        if i in [2, 4, 5]:
-            conv0 = layer.nodes['conv0']
-            conv1 = layer.nodes['conv1']
-            conv0.set_weights([W_list[i-1][0], b_list[i-1][0]])
-            conv1.set_weights([W_list[i-1][1], b_list[i-1][1]])
-        else:
-            layer.set_weight([W_list[i-1], b_list[i-1]])
-
-    for i in range(1, 3):
-        layer = next(layer for layer in model.layers if layer.name == 'dense_'+str(i))
-        layer.set_weights([W_list[i+4], b_list[i+4]])
-
-    layer = next(layer for layer in model.layers if layer.name == 'dense_'+str(i))
-    layer.set_weights([W_list[7], b_list[7]])
+    if weights_path:
+        model.load_weights(weights_path)
 
     return model
+
+# def load_coeff(path='parameters_releasing/'):
+#     model = convnet('alexnet')
+#     suf = '_65.npy'
+#     W_list = []
+#     b_list = []
+#     for i in range(8):
+#         if i in [1, 3, 4]:
+#             W0, W1 = np.load(path+'W0_'+str(i)+suf), np.load(path+'W1_'+str(i)+suf)
+#             b0, b1 = np.load(path+'b0_'+str(i)+suf), np.load(path+'b1_'+str(i)+suf)
+
+#             W0 = W0.transpose((3, 0, 1, 2))
+#             W1 = W1.transpose((3, 0, 1, 2))
+#             W_list.append([W0, W1])
+#             b_list.append([b0, b1])
+#         else:
+#             W = np.load(path+'W_'+str(i)+suf)
+#             b = np.load(path+'b_'+str(i)+suf)
+#             if i in [0, 2]:
+#                 W = W.transpose((3, 0, 1, 2))
+#             W_list.append(W)
+#             b_list.append(b)
+
+
+    
+
+#     for i in range(1,6):
+#         layer = next(layer for layer in model.layers if layer.name == 'conv_'+str(i))
+#         if i in [2, 4, 5]:
+#             conv0 = layer.nodes['conv0']
+#             conv1 = layer.nodes['conv1']
+#             conv0.set_weights([W_list[i-1][0], b_list[i-1][0]])
+#             conv1.set_weights([W_list[i-1][1], b_list[i-1][1]])
+#         else:
+#             layer.set_weights([W_list[i-1], b_list[i-1]])
+
+#     for i in range(1, 3):
+#         layer = next(layer for layer in model.layers if layer.name == 'dense_'+str(i))
+#         layer.set_weights([W_list[i+4], b_list[i+4]])
+
+#     layer = next(layer for layer in model.layers if layer.name == 'softmax')
+#     layer.set_weights([W_list[7], b_list[7]])
+
+#     return model
         
     
               
@@ -288,7 +301,7 @@ if __name__ == "__main__":
     im = preprocess_image_batch(['cat.jpg'], 227, 227)
 
     # Test pretrained model
-    model = convnet('alexnet')
+    model = convnet('alexnet', weight_path='alexnet_weight.h5')
     sgd = SGD(lr=0.1, decay=1e-6, momentum=0.9, nesterov=True)
     model.compile(optimizer=sgd, loss='categorical_crossentropy')
     out = model.predict(im)
