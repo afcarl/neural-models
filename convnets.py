@@ -17,7 +17,8 @@ from scipy.misc import imread, imresize, imsave
 
 import pdb
 
-def convnet(network, weights_path=None, output_layer=None, convolutionize=False):
+def convnet(network, weights_path=None, output_layer=None, convolutionize=False,
+            trainable=True):
     """
     Returns a keras model for a CNN.
     
@@ -72,6 +73,8 @@ def convnet(network, weights_path=None, output_layer=None, convolutionize=False)
     else:
         raise ValueError("Network "+network+" is not known")
 
+    for layer in model.layers:
+        layer.trainable = False
 
     # Select the output
     if output_layer != None:
