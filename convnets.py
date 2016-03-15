@@ -69,12 +69,12 @@ def convnet(network, weights_path=None, output_layer=None, convolutionize=False,
         model = VGG_19(weights_path)
 
     elif network == 'alexnet':
-        model=AlexNet()
+        model=AlexNet(weights_path)
     else:
         raise ValueError("Network "+network+" is not known")
 
     for layer in model.layers:
-        layer.trainable = False
+        layer.trainable = trainable
 
     # Select the output
     if output_layer != None:
