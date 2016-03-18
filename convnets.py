@@ -2,20 +2,23 @@ import numpy as np
 
 from keras import backend as K
 from keras.models import Sequential
-from keras.layers.core import Flatten, Dense, Dropout
+from keras.layers.core import Flatten, Dense, Dropout, Reshape, Permute, Activation
 from keras.layers.convolutional import Convolution2D, MaxPooling2D, ZeroPadding2D
 from keras.optimizers import SGD
 from keras.layers.mylayers import Convolution2DGroup
 import numpy as np
 
-
+from copy import deepcopy
 
 
 from os.path import join
 
 from scipy.misc import imread, imresize, imsave
 
-def convnet(network, weights_path=None, output_layer=None):
+import pdb
+
+def convnet(network, weights_path=None, output_layer=None, convolutionize=False,
+            trainable=True):
     """
     Returns a keras model for a CNN.
     
@@ -44,6 +47,9 @@ def convnet(network, weights_path=None, output_layer=None):
     layer_output: dict
         Iterable of the name of all the feature layers that will be returned
 
+    convolutionize: bool
+        Says wether the fully connected layers are transformed into Convolution2D layers
+
 
     Returns
     ---------------
@@ -63,21 +69,49 @@ def convnet(network, weights_path=None, output_layer=None):
         model = VGG_19(weights_path)
 
     elif network == 'alexnet':
-        model=AlexNet()
+        model=AlexNet(weights_path)
     else:
         raise ValueError("Network "+network+" is not known")
 
+    for layer in model.layers:
+        layer.trainable = trainable
 
     # Select the output
-    if output_layer == None:
-        return model 
-    else:
+    if output_layer != None:
         # Check that the layer name exists
         if not any(layer.name == output_layer for layer in model.layers):
             raise ValueError("Layer "+output_layer+" does not exist in this network")
 
         while model.layers[-1].name != output_layer:
             model.layers.pop()
+
+    if convolutionize:
+        mod_conv = Sequential()
+        for layer in model.layers:
+            layer_type = layer.get_config()['name']
+            if  layer_type == "Dense":
+                n_previous_filters = mod_conv.output_shape[1]
+                W, b = layer.get_weights()
+                new_size = int(np.sqrt(W.shape[0]/n_previous_filters))
+                new_W = W.reshape((W.shape[1],
+                                   n_previous_filters,
+                                   new_size,
+                                   new_size))
+                new_layer = Convolution2D(W.shape[1], new_size, new_size,
+                                          weights=[new_W, b],
+                                          activation=layer.get_config()["activation"])
+                mod_conv.add(new_layer)
+                
+                
+            elif layer_type == "Flatten":
+                pass
+            else:
+                mod_conv.add(layer)
+            
+            if len(mod_conv.layers) == 1:
+                mod_conv.layers[0].set_input_shape((None, 3, None, None))
+
+        return mod_conv
     return model
 
     
@@ -124,7 +158,7 @@ def VGG_16(weights_path=None):
     model.add(Dropout(0.5))
     model.add(Dense(4096, activation='relu', name='dense_2'))
     model.add(Dropout(0.5))
-    model.add(Dense(1000, activation='softmax'))
+    model.add(Dense(1000, name='softmax', activation='softmax'))
 
     if weights_path:
         model.load_weights(weights_path)
@@ -180,7 +214,7 @@ def VGG_19(weights_path=None):
     model.add(Dropout(0.5))
     model.add(Dense(4096, activation='relu', name='dense_2'))
     model.add(Dropout(0.5))
-    model.add(Dense(1000, activation='softmax'))
+    model.add(Dense(1000, name='softmax', activation='softmax'))
 
     if weights_path:
         model.load_weights(weights_path)
@@ -301,11 +335,12 @@ def deprocess_image(x):
 if __name__ == "__main__":
 
     # base_image = K.variable(preprocess_image('~/Pictures/cat.jpg'))
-    im = preprocess_image_batch(['cat.jpg'], 227, 227)
+    im = preprocess_image_batch(['cat.jpg'], 300, 300)
 
     # Test pretrained model
-    model = convnet('alexnet', weight_path='alexnet_weight.h5')
+    model = convnet('vgg_16', weights_path='weights/vgg16_weights.h5',convolutionize=True)
     sgd = SGD(lr=0.1, decay=1e-6, momentum=0.9, nesterov=True)
     model.compile(optimizer=sgd, loss='categorical_crossentropy')
     out = model.predict(im)
     print out
+    
