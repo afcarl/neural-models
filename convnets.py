@@ -275,6 +275,9 @@ def preprocess_image_batch(image_paths, img_width=224, img_height=224):
         
         img = imresize(imread(im_path, mode='RGB'), (img_width, img_height))
         img = img.transpose((2, 0, 1)).astype('float32')
+        r, g, b = img[:, :, 0], img[:, :, 1], img[:, :, 2]
+        img[:,:,0] = b
+        img[:,:,2] = r
         img[:, :, 0] -= 103.939
         img[:, :, 1] -= 116.779
         img[:, :, 2] -= 123.68
