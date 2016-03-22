@@ -21,36 +21,34 @@ import random
 
 mypath='/mnt/data/datasets/flickrdataset/'
 
-# reject_folders = ['bikinis', 'lingeries', 'porn', 'swimsuits']
-# accept_folders = ['sports','women','babies']
+labels={'bikinis':0, 'lingeries':1, 'porn':2, 'swimsuits':3,'sports':4,'women':5,'babies':6}
+reject_folders = ['bikinis', 'lingeries', 'porn', 'swimsuits']
+accept_folders = ['sports','women','babies']
 
-# reject_files = [(join(mypath,fold,f),0) for fold in reject_folders \
-#                 for f in listdir(join(mypath, fold)) if f[-3:].lower() == "jpg"]
-# accept_files = [(join(mypath,fold,f),1) for fold in accept_folders \
-#                 for f in listdir(join(mypath, fold)) if f[-3:].lower() == "jpg"]
+folders = ['bikinis','lingeries','porn','swimsuits','sports','women','babies']
 
 
+files = [(join(mypath,fold,f),labels[fold]) for fold in folders \
+         for f in listdir(join(mypath, fold)) if f[-3:].lower() == "jpg"]
 
-# data = reject_files + accept_files
-# random.shuffle(data)
+data = files
 
+data_processed = []
+feat = convnet('vgg_16', weights_path='weights/vgg16_weights.h5', output_layer='dense_2')
+sgd = SGD(lr=0.1, decay=1e-6, momentum=0.9, nesterov=True)
+feat.compile(optimizer=sgd, loss='categorical_crossentropy')
+batch_size = 16
+for i in range(0,len(data), batch_size):
+    print "Processing images "+str((i, i+batch_size))
+    files_processed = [f for (f,l) in data[i:i+batch_size]]
+    img_batch = preprocess_image_batch(files_processed)
+    features_batch = feat.predict(img_batch)
+    data_processed.extend(features_batch)
 
-# data_processed = []
-# feat = convnet('vgg_16', weights_path='weights/vgg16_weights.h5', output_layer='dense_2')
-# sgd = SGD(lr=0.1, decay=1e-6, momentum=0.9, nesterov=True)
-# feat.compile(optimizer=sgd, loss='categorical_crossentropy')
-# batch_size = 16
-# for i in range(0,len(data), batch_size):
-#     print "Processing images "+str((i, i+batch_size))
-#     files_processed = [f for (f,l) in data[i:i+batch_size]]
-#     img_batch = preprocess_image_batch(files_processed)
-#     features_batch = feat.predict(img_batch)
-#     data_processed.extend(features_batch)
+Y = [l for (f,l) in data]
 
-# Y = [l for (f,l) in data]
-
-# with open('/mnt/data/datasets/flickrdataset/processed.pkl', 'wb') as f:
-#     pkl.dump((data_processed,Y), f)
+with open('/mnt/data/datasets/flickrdataset/processed.pkl', 'wb') as f:
+    pkl.dump((data_processed,Y), f)
     
 with open('/mnt/data/datasets/flickrdataset/processed.pkl', 'rb') as f:
     X, y = pkl.load(f)
