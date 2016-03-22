@@ -1,3 +1,8 @@
+import sys
+
+sys.path.insert(0, "/home/lblier/.local/lib/python2.7/site-packages")
+sys.path.append("/home/lblier/")
+
 import numpy as np
 
 from keras import backend as K
@@ -225,30 +230,62 @@ def VGG_19(weights_path=None):
 def AlexNet(weights_path=None):
     model = Sequential()
     model.add(ZeroPadding2D((0,0),input_shape=(3,227,227)))
-    model.add(Convolution2D(96, 11, 11, subsample=(4,4), activation='relu', name='conv_1'))
+    model.add(Convolution2D(96, 11, 11,
+                            subsample=(4,4),
+                            activation='relu',
+                            name='conv_1'))
     model.add(MaxPooling2D((3, 3), strides=(2,2)))
 
+
+    
     model.add(ZeroPadding2D((2,2)))
-    model.add(Convolution2DGroup(2,256,5,5, input_shape=model.output_shape, subsample=(1,1), activation='relu', name='conv_2'))
+    model.add(Convolution2DGroup(2,256,5,5,
+                                 input_shape=model.output_shape,
+                                 subsample=(1,1),
+                                 activation='relu',
+                                 name='conv_2'))
     model.add(MaxPooling2D((3, 3), strides=(2, 2)))
 
-    model.add(ZeroPadding2D((1,1)))
-    model.add(Convolution2D(384,3,3, subsample=(1,1), activation='relu', name='conv_3'))
 
+    
     model.add(ZeroPadding2D((1,1)))
-    model.add(Convolution2DGroup(2,384,3,3, input_shape=model.output_shape, subsample=(1,1), activation='relu', name='conv_4'))
+    model.add(Convolution2D(384,3,3,
+                            subsample=(1,1),
+                            activation='relu',
+                            name='conv_3'))
 
+
+    
     model.add(ZeroPadding2D((1,1)))
-    model.add(Convolution2DGroup(2,256,3,3, input_shape=model.output_shape, subsample=(1,1), activation='relu', name='conv_5'))
+    model.add(Convolution2DGroup(2,384,3,3,
+                                 input_shape=model.output_shape,
+                                 subsample=(1,1),
+                                 activation='relu',
+                                 name='conv_4'))
+
+
+    
+    model.add(ZeroPadding2D((1,1)))
+    model.add(Convolution2DGroup(2,256,3,3,
+                                 input_shape=model.output_shape,
+                                 subsample=(1,1),
+                                 activation='relu',
+                                 name='conv_5'))
     model.add(MaxPooling2D((3, 3), strides=(2,2)))
 
+
+    
     model.add(Flatten())
     model.add(Dense(4096, activation='relu', name='dense_1'))
     model.add(Dropout(0.5))
 
+
+    
     model.add(Dense(4096, activation='relu', name='dense_2'))
     model.add(Dropout(0.5))
 
+
+    
     model.add(Dense(1000, activation='softmax', name='softmax'))
 
     if weights_path:
@@ -256,49 +293,49 @@ def AlexNet(weights_path=None):
 
     return model
 
-# def load_coeff(path='parameters_releasing/'):
-#     model = convnet('alexnet')
-#     suf = '_65.npy'
-#     W_list = []
-#     b_list = []
-#     for i in range(8):
-#         if i in [1, 3, 4]:
-#             W0, W1 = np.load(path+'W0_'+str(i)+suf), np.load(path+'W1_'+str(i)+suf)
-#             b0, b1 = np.load(path+'b0_'+str(i)+suf), np.load(path+'b1_'+str(i)+suf)
+def load_coeff(path='../NeuralModels/parameters_releasing/'):
+    model = convnet('alexnet')
+    suf = '_65.npy'
+    W_list = []
+    b_list = []
+    for i in range(8):
+        if i in [1, 3, 4]:
+            W0, W1 = np.load(path+'W0_'+str(i)+suf), np.load(path+'W1_'+str(i)+suf)
+            b0, b1 = np.load(path+'b0_'+str(i)+suf), np.load(path+'b1_'+str(i)+suf)
 
-#             W0 = W0.transpose((3, 0, 1, 2))
-#             W1 = W1.transpose((3, 0, 1, 2))
-#             W_list.append([W0, W1])
-#             b_list.append([b0, b1])
-#         else:
-#             W = np.load(path+'W_'+str(i)+suf)
-#             b = np.load(path+'b_'+str(i)+suf)
-#             if i in [0, 2]:
-#                 W = W.transpose((3, 0, 1, 2))
-#             W_list.append(W)
-#             b_list.append(b)
+            W0 = W0.transpose((3, 0, 2, 1))
+            W1 = W1.transpose((3, 0, 2, 1))
+            W_list.append([W0, W1])
+            b_list.append([b0, b1])
+        else:
+            W = np.load(path+'W_'+str(i)+suf)
+            b = np.load(path+'b_'+str(i)+suf)
+            if i in [0, 2]:
+                W = W.transpose((3, 0, 2, 1))
+            W_list.append(W)
+            b_list.append(b)
 
 
     
 
-#     for i in range(1,6):
-#         layer = next(layer for layer in model.layers if layer.name == 'conv_'+str(i))
-#         if i in [2, 4, 5]:
-#             conv0 = layer.nodes['conv0']
-#             conv1 = layer.nodes['conv1']
-#             conv0.set_weights([W_list[i-1][0], b_list[i-1][0]])
-#             conv1.set_weights([W_list[i-1][1], b_list[i-1][1]])
-#         else:
-#             layer.set_weights([W_list[i-1], b_list[i-1]])
+    for i in range(1,6):
+        layer = next(layer for layer in model.layers if layer.name == 'conv_'+str(i))
+        if i in [2, 4, 5]:
+            conv0 = layer.nodes['conv0']
+            conv1 = layer.nodes['conv1']
+            conv0.set_weights([W_list[i-1][0], b_list[i-1][0]])
+            conv1.set_weights([W_list[i-1][1], b_list[i-1][1]])
+        else:
+            layer.set_weights([W_list[i-1], b_list[i-1]])
 
-#     for i in range(1, 3):
-#         layer = next(layer for layer in model.layers if layer.name == 'dense_'+str(i))
-#         layer.set_weights([W_list[i+4], b_list[i+4]])
+    for i in range(1, 3):
+        layer = next(layer for layer in model.layers if layer.name == 'dense_'+str(i))
+        layer.set_weights([W_list[i+4], b_list[i+4]])
 
-#     layer = next(layer for layer in model.layers if layer.name == 'softmax')
-#     layer.set_weights([W_list[7], b_list[7]])
+    layer = next(layer for layer in model.layers if layer.name == 'softmax')
+    layer.set_weights([W_list[7], b_list[7]])
 
-#     return model
+    return model
         
     
               
@@ -308,14 +345,15 @@ def preprocess_image_batch(image_paths, img_width=224, img_height=224):
     for im_path in image_paths:
         
         img = imresize(imread(im_path, mode='RGB'), (img_width, img_height))
-        img = img.transpose((2, 0, 1)).astype('float32')
-        r, g, b = img[:, :, 0], img[:, :, 1], img[:, :, 2]
-        img[:,:,0] = b
-        img[:,:,2] = r
+        img = img.astype('float32')
+        # We permute the colors to get them in the BGR order
+        #pdb.set_trace()
+        img[:,:,[0,1,2]] = img[:,:,[2,1,0]]
+        # We normalize the colors with the empirical means on the training set
         img[:, :, 0] -= 103.939
         img[:, :, 1] -= 116.779
         img[:, :, 2] -= 123.68
-        #img = np.expand_dims(img, axis=0)
+        img = img.transpose((2, 0, 1))
         img_list.append(img)
 
     img_batch = np.stack(img_list, axis=0)
@@ -335,10 +373,10 @@ def deprocess_image(x):
 if __name__ == "__main__":
 
     # base_image = K.variable(preprocess_image('~/Pictures/cat.jpg'))
-    im = preprocess_image_batch(['cat.jpg'], 300, 300)
+    im = preprocess_image_batch(['cat.jpg'], 227, 227)
 
     # Test pretrained model
-    model = convnet('vgg_16', weights_path='weights/vgg16_weights.h5',convolutionize=True)
+    model = convnet('vgg_16', weights_path='weights/vgg16_weights.h5',convolutionize=False)
     sgd = SGD(lr=0.1, decay=1e-6, momentum=0.9, nesterov=True)
     model.compile(optimizer=sgd, loss='categorical_crossentropy')
     out = model.predict(im)
