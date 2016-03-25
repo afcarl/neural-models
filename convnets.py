@@ -10,7 +10,7 @@ from keras.models import Sequential
 from keras.layers.core import Flatten, Dense, Dropout, Reshape, Permute, Activation
 from keras.layers.convolutional import Convolution2D, MaxPooling2D, ZeroPadding2D
 from keras.optimizers import SGD
-from keras.layers.mylayers import Convolution2DGroup
+from keras.layers.mylayers import Convolution2DGroup, CrossChannelNormalization
 import numpy as np
 
 from copy import deepcopy
@@ -21,7 +21,6 @@ from os.path import join
 from scipy.misc import imread, imresize, imsave
 
 import pdb
-from time import time
 
 def convnet(network, weights_path=None, output_layer=None, convolutionize=False,
             trainable=True):
@@ -92,7 +91,10 @@ def convnet(network, weights_path=None, output_layer=None, convolutionize=False,
             model.layers.pop()
 
     if convolutionize:
+        conv_stride = (5, 5)
         mod_conv = Sequential()
+
+        first_dense = True
         for layer in model.layers:
             layer_type = layer.get_config()['name']
             if  layer_type == "Dense":
@@ -103,8 +105,13 @@ def convnet(network, weights_path=None, output_layer=None, convolutionize=False,
                                    n_previous_filters,
                                    new_size,
                                    new_size))
+                if first_dense:
+                    subsample = conv_stride
+                else:
+                    subsample = (1, 1)
                 new_layer = Convolution2D(W.shape[1], new_size, new_size,
                                           weights=[new_W, b],
+                                          subsample=subsample,
                                           activation=layer.get_config()["activation"])
                 mod_conv.add(new_layer)
                 
@@ -230,13 +237,14 @@ def VGG_19(weights_path=None):
 
 def AlexNet(weights_path=None):
     model = Sequential()
+
     model.add(ZeroPadding2D((0,0),input_shape=(3,227,227)))
     model.add(Convolution2D(96, 11, 11,
                             subsample=(4,4),
                             activation='relu',
                             name='conv_1'))
     model.add(MaxPooling2D((3, 3), strides=(2,2)))
-
+    model.add(CrossChannelNormalization())
 
     
     model.add(ZeroPadding2D((2,2)))
@@ -246,7 +254,7 @@ def AlexNet(weights_path=None):
                                  activation='relu',
                                  name='conv_2'))
     model.add(MaxPooling2D((3, 3), strides=(2, 2)))
-
+    model.add(CrossChannelNormalization())
 
     
     model.add(ZeroPadding2D((1,1)))
@@ -274,8 +282,7 @@ def AlexNet(weights_path=None):
                                  name='conv_5'))
     model.add(MaxPooling2D((3, 3), strides=(2,2)))
 
-
-    
+   
     model.add(Flatten())
     model.add(Dense(4096, activation='relu', name='dense_1'))
     model.add(Dropout(0.5))
@@ -351,10 +358,39 @@ def preprocess_image_batch(image_paths, img_width=224, img_height=224):
         #pdb.set_trace()
         img[:,:,[0,1,2]] = img[:,:,[2,1,0]]
         # We normalize the colors with the empirical means on the training set
-        img[:, :, 0] -= 103.939
-        img[:, :, 1] -= 116.779
-        img[:, :, 2] -= 123.68
+        #img[:, :, 0] -= 103.939
+        #img[:, :, 1] -= 116.779
+        #img[:, :, 2] -= 123.68
         img = img.transpose((2, 0, 1))
+        img_list.append(img)
+
+    img_batch = np.stack(img_list, axis=0)
+    return img_batch
+
+def preprocess_image_batch2(image_paths):
+    img_list = []
+    img_size = 256
+    crop_size = 227
+
+    img_mean = np.load("../theano_alexnet/pretrained/img_mean.npy")
+    img_mean = img_mean.astype('float32')
+    for im_path in image_paths:
+        
+        img = imresize(imread(im_path, mode='RGB'), (img_size, img_size))
+        img = img.astype('float32')
+        # We permute the colors to get them in the BGR order
+        #pdb.set_trace()
+        img = img.transpose((2, 0, 1))
+        img = img - img_mean
+        #img[:,:,[0,1,2]] = img[:,:,[2,1,0]]
+        # We normalize the colors with the empirical means on the training set
+        #img[:, :, 0] -= 103.939
+        #img[:, :, 1] -= 116.779
+        #img[:, :, 2] -= 123.68
+
+        img = img[:, (img_size-crop_size)/2:-(img_size-crop_size)/2,
+                  (img_size-crop_size)/2:-(img_size-crop_size)/2]
+        
         img_list.append(img)
 
     img_batch = np.stack(img_list, axis=0)
@@ -374,14 +410,12 @@ def deprocess_image(x):
 if __name__ == "__main__":
 
     # base_image = K.variable(preprocess_image('~/Pictures/cat.jpg'))
-    im = preprocess_image_batch(['cat.jpg'], 227, 227)
+    im = preprocess_image_batch2(['cat.jpg'])
 
     # Test pretrained model
-    model = convnet('alexnet', weights_path='weights/alexnet_weights.h5',convolutionize=False)
+    #model = convnet('alexnet', weights_path='weights/alexnet_weights.h5',convolutionize=False)
+    model = load_coeff()
     sgd = SGD(lr=0.1, decay=1e-6, momentum=0.9, nesterov=True)
     model.compile(optimizer=sgd, loss='categorical_crossentropy')
-    t0 = time()
     out = model.predict(im)
-    #print out
-    print time() - t0
     
