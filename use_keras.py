@@ -5,8 +5,8 @@ Created on Fri Mar 11 14:57:45 2016
 @author: hedi
 """
 
-from neuralmodels.convnets import preprocess_image_batch as preprocess
-from neuralmodels.convnets import convnet
+from convnets import preprocess_image_batch as preprocess
+from convnets import convnet
 from keras.optimizers import SGD
 from keras.models import Graph
 from keras.layers import Dense

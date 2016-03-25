@@ -21,6 +21,7 @@ from os.path import join
 from scipy.misc import imread, imresize, imsave
 
 import pdb
+from time import time
 
 def convnet(network, weights_path=None, output_layer=None, convolutionize=False,
             trainable=True):
@@ -376,9 +377,11 @@ if __name__ == "__main__":
     im = preprocess_image_batch(['cat.jpg'], 227, 227)
 
     # Test pretrained model
-    model = convnet('vgg_16', weights_path='weights/vgg16_weights.h5',convolutionize=False)
+    model = convnet('alexnet', weights_path='weights/alexnet_weights.h5',convolutionize=False)
     sgd = SGD(lr=0.1, decay=1e-6, momentum=0.9, nesterov=True)
     model.compile(optimizer=sgd, loss='categorical_crossentropy')
+    t0 = time()
     out = model.predict(im)
-    print out
+    #print out
+    print time() - t0
     
