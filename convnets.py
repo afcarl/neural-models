@@ -92,7 +92,10 @@ def convnet(network, weights_path=None, output_layer=None, convolutionize=False,
             model.layers.pop()
 
     if convolutionize:
+        conv_stride = (5, 5)
         mod_conv = Sequential()
+
+        first_dense = True
         for layer in model.layers:
             layer_type = layer.get_config()['name']
             if  layer_type == "Dense":
@@ -103,8 +106,13 @@ def convnet(network, weights_path=None, output_layer=None, convolutionize=False,
                                    n_previous_filters,
                                    new_size,
                                    new_size))
+                if first_dense:
+                    subsample = conv_stride
+                else:
+                    subsample = (1, 1)
                 new_layer = Convolution2D(W.shape[1], new_size, new_size,
                                           weights=[new_W, b],
+                                          subsample=subsample,
                                           activation=layer.get_config()["activation"])
                 mod_conv.add(new_layer)
                 
@@ -230,6 +238,7 @@ def VGG_19(weights_path=None):
 
 def AlexNet(weights_path=None):
     model = Sequential()
+
     model.add(ZeroPadding2D((0,0),input_shape=(3,227,227)))
     model.add(Convolution2D(96, 11, 11,
                             subsample=(4,4),
@@ -237,7 +246,6 @@ def AlexNet(weights_path=None):
                             name='conv_1'))
     model.add(MaxPooling2D((3, 3), strides=(2,2)))
     model.add(CrossChannelNormalization())
-
 
     
     model.add(ZeroPadding2D((2,2)))
@@ -249,14 +257,12 @@ def AlexNet(weights_path=None):
     model.add(MaxPooling2D((3, 3), strides=(2, 2)))
     model.add(CrossChannelNormalization())
 
-
     
     model.add(ZeroPadding2D((1,1)))
     model.add(Convolution2D(384,3,3,
                             subsample=(1,1),
                             activation='relu',
                             name='conv_3'))
-
 
     
     model.add(ZeroPadding2D((1,1)))
@@ -265,7 +271,6 @@ def AlexNet(weights_path=None):
                                  subsample=(1,1),
                                  activation='relu',
                                  name='conv_4'))
-
 
     
     model.add(ZeroPadding2D((1,1)))
@@ -276,17 +281,14 @@ def AlexNet(weights_path=None):
                                  name='conv_5'))
     model.add(MaxPooling2D((3, 3), strides=(2,2)))
 
-
-    
+   
     model.add(Flatten())
     model.add(Dense(4096, activation='relu', name='dense_1'))
     model.add(Dropout(0.5))
 
-
     
     model.add(Dense(4096, activation='relu', name='dense_2'))
     model.add(Dropout(0.5))
-
 
     
     model.add(Dense(1000, activation='softmax', name='softmax'))
