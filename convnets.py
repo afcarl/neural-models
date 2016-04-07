@@ -10,7 +10,8 @@ from keras.models import Sequential
 from keras.layers.core import Flatten, Dense, Dropout, Reshape, Permute, Activation
 from keras.layers.convolutional import Convolution2D, MaxPooling2D, ZeroPadding2D
 from keras.optimizers import SGD
-from keras.layers.mylayers import Convolution2DGroup, CrossChannelNormalization
+
+from customlayers import Convolution2DGroup, CrossChannelNormalization
 import numpy as np
 
 from copy import deepcopy
@@ -23,7 +24,7 @@ from scipy.misc import imread, imresize, imsave
 import pdb
 
 def convnet(network, weights_path=None, output_layer=None, convolutionize=False,
-            trainable=True):
+            trainable=None):
     """
     Returns a keras model for a CNN.
     
@@ -78,8 +79,7 @@ def convnet(network, weights_path=None, output_layer=None, convolutionize=False,
     else:
         raise ValueError("Network "+network+" is not known")
 
-    for layer in model.layers:
-        layer.trainable = trainable
+    
 
     # Select the output
     if output_layer != None:
@@ -89,6 +89,13 @@ def convnet(network, weights_path=None, output_layer=None, convolutionize=False,
 
         while model.layers[-1].name != output_layer:
             model.layers.pop()
+
+    if trainable != None:
+        for layer in model.layers:
+            if layer.name in trainable:
+                layer.trainable = True
+            else:
+                layer.trainable = False
 
     if convolutionize:
         conv_stride = (5, 5)
@@ -367,7 +374,7 @@ def preprocess_image_batch(image_paths, img_width=224, img_height=224):
     img_batch = np.stack(img_list, axis=0)
     return img_batch
 
-def preprocess_image_batch2(image_paths):
+def preprocess_image_batch2(image_paths, out=None):
     img_list = []
     img_size = 256
     crop_size = 227
@@ -382,19 +389,16 @@ def preprocess_image_batch2(image_paths):
         #pdb.set_trace()
         img = img.transpose((2, 0, 1))
         img = img - img_mean
-        #img[:,:,[0,1,2]] = img[:,:,[2,1,0]]
-        # We normalize the colors with the empirical means on the training set
-        #img[:, :, 0] -= 103.939
-        #img[:, :, 1] -= 116.779
-        #img[:, :, 2] -= 123.68
-
         img = img[:, (img_size-crop_size)/2:-(img_size-crop_size)/2,
                   (img_size-crop_size)/2:-(img_size-crop_size)/2]
         
         img_list.append(img)
 
     img_batch = np.stack(img_list, axis=0)
-    return img_batch
+    if out == None:
+        return img_batch
+    else:
+        out.append(img_batch)
 
 def deprocess_image(x):
     x[:, :, 0] += 103.939
