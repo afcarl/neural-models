@@ -1,12 +1,18 @@
-import sys
+#!/usr/bin/python
+# Usage:
+#   $ python porn_detection.py 0.0.0.0 5234 /mnt/data/datasets &
+#   $ curl -XPOST -F "file=@my_porn_image.jpg" http://porndetection:5234/detect
 
-sys.path.insert(0, "/home/lblier/.local/lib/python2.7/site-packages")
+
+import sys
 
 import numpy as np
 
+import json
+
+import os
 from os import listdir
 from os.path import isfile, join
-
 
 from convnets import convnet, preprocess_image_batch, preprocess_image_batch2
 from keras.utils import np_utils
@@ -19,24 +25,52 @@ import pickle as pkl
 
 import random
 
+from flask import Flask, request
+import traceback
+from werkzeug import secure_filename
 
-model = convnet('alexnet', weights_path='weights/alexnet_weights.h5',
-                output_layer='dense_2')
-model.add(Dense(1,
-                activation='sigmoid',
-                name='classifier'))
-model.load_weights("porn_weights.h5")
+app = Flask(__name__)
 
-sgd = SGD(lr=.5, decay=1.e-6, momentum=0., nesterov=False)
-model.compile(optimizer=sgd, loss='binary_crossentropy')
+# Set logging level to error
+import logging
+log = logging.getLogger('werkzeug')
+log.setLevel(logging.ERROR)
+
+@app.route("/detect", methods=['POST'])
+def detect():
+    global model
+    try:
+      file = request.files['file']
+      if file:
+        filename = secure_filename(file.filename)
+        # TODO pass opened file directly instead of reopening
+        file.save("/tmp/image.jpg")
+        img_paths = ["/tmp/image.jpg"]
+        X = preprocess_image_batch2(img_paths)
+        y = model.predict(X)
+        return json.dumps({ "probability": y[0][0] })
+      else:
+        return None
+    except:
+      print("Exception occured: ")
+      traceback.print_exc(file=sys.stdout)
+      return "{}", 500
 
 
+if __name__ == "__main__":
+    if len(sys.argv) != 4:
+        print "Usage: "+sys.argv[0]+" HOST PORT PATH_TO_DATASETS"
+        sys.exit(1)
 
+    datasetsPath = sys.argv[3]
+    mypath = os.path.join(datasetsPath, 'flickrdataset')
 
-img_paths = []
-X = preprocess_image_batch2(img_paths)
+    model = convnet('alexnet', output_layer='dense_2')
+    model.add(Dense(1, activation='sigmoid', name='classifier'))
+    model.load_weights("porn.h5")
+    
+    sgd = SGD(lr=.5, decay=1.e-6, momentum=0., nesterov=False)
+    model.compile(optimizer=sgd, loss='binary_crossentropy')
 
-y = model.predict(X)
-
-
-
+    print "Ready"
+    app.run(debug=False, host=sys.argv[1], port=sys.argv[2], threaded=True)
