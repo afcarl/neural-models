@@ -59,15 +59,16 @@ def detect():
 
 if __name__ == "__main__":
     if len(sys.argv) != 4:
-        print "Usage: "+sys.argv[0]+" HOST PORT PATH_TO_DATASETS"
+        print "Usage: "+sys.argv[0]+" HOST PORT PATH_TO_PORNH5"
         sys.exit(1)
 
-    datasetsPath = sys.argv[3]
-    mypath = os.path.join(datasetsPath, 'flickrdataset')
+    pornH5Path = sys.argv[3]
+    if not pornH5Path.endswith('porn.h5'):
+        pornH5Path = os.path.join(pornH5Path, 'porn.h5')
 
     model = convnet('alexnet', output_layer='dense_2')
     model.add(Dense(1, activation='sigmoid', name='classifier'))
-    model.load_weights("porn.h5")
+    model.load_weights(pornH5Path)
     
     sgd = SGD(lr=.5, decay=1.e-6, momentum=0., nesterov=False)
     model.compile(optimizer=sgd, loss='binary_crossentropy')
