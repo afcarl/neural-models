@@ -3,7 +3,6 @@ import sys
 sys.path.insert(0, "/home/lblier/.local/lib/python2.7/site-packages")
 
 import numpy as np
-
 from os import listdir
 from os.path import isfile, join
 
@@ -19,6 +18,7 @@ from keras.regularizers import l2
 import pickle as pkl
 
 import threading
+#from multiprocessing import Pool
 
 import random
 import time
@@ -39,6 +39,7 @@ folders = ['bikinis','lingeries','porn', 'porn/realgirls', 'swimsuits','sports_f
 files = [(join(mypath,fold,f),labels[fold]) for fold in folders \
          for f in listdir(join(mypath, fold)) if f[-3:].lower() == "jpg"] 
 
+stop
 image_folder = "/mnt/data/lblier/ImageNet/"
 files.extend([(join(image_folder,"ILSVRC2012_val_"+\
                     str(i+1).zfill(8)+".JPEG"),7) \
@@ -74,11 +75,11 @@ def myGenerator(data, max_n_pic, batch_size, shuffle=False):
                                  featurewise_std_normalization=False,
                                  samplewise_std_normalization=False,
                                  zca_whitening=False,
-                                 rotation_range=20.,
+                                 rotation_range=0.,
                                  width_shift_range=0.,
                                  height_shift_range=0.,
                                  shear_range=0.,
-                                 horizontal_flip=True,
+                                 horizontal_flip=False,
                                  vertical_flip=False)
 
     
@@ -98,21 +99,23 @@ def myGenerator(data, max_n_pic, batch_size, shuffle=False):
         permutation = np.arange(n_step)
     k = 0
     j = permutation[k]
-    X_train = preprocess_image_batch2(files_processed[j*max_n_pic:(j+1)*max_n_pic])
+    print "ping"
+    X_train = preprocess_image_batch2(files_processed[j*max_n_pic:(j+1)*max_n_pic],
+                                      n_jobs=1)
+    print "pong"
     Y_train = Y[j*max_n_pic:(j+1)*max_n_pic]
     datagen.fit(X_train)
     while True:
         k = (k + 1)  % n_step
         j = permutation[k]
-        out_xtrain = []
-        t_xtrain = threading.Thread(target=preprocess_image_batch2,
-                                    args=(files_processed[j*max_n_pic:(j+1)*max_n_pic],
-                                          out_xtrain))
-        t_xtrain.daemon=True
-        t_xtrain.start()
+        # out_xtrain = []
+        # t_xtrain = threading.Thread(target=preprocess_image_batch2,
+        #                             args=(files_processed[j*max_n_pic:(j+1)*max_n_pic],
+        #                                   out_xtrain,20))
+        # t_xtrain.daemon=True
+        # t_xtrain.start()
         gen = datagen.flow(X_train,Y_train,
                            batch_size=batch_size,shuffle=shuffle)
-
         x,y = next(gen)
         for l in range(X_train.shape[0]/batch_size - 1):
             out_xy = []
@@ -127,13 +130,11 @@ def myGenerator(data, max_n_pic, batch_size, shuffle=False):
             x,y = out_xy[0]
             # x,y = next(gen)
 
-            
-                
-                
-            
         
-        t.join()
-        X_train = out_xtrain[0]
+        #t_xtrain.join()
+        # X_train = out_xtrain[0]
+        X_train = preprocess_image_batch2(files_processed[j*max_n_pic:(j+1)*max_n_pic],
+                                          n_jobs=1)
         Y_train = Y[j*max_n_pic:(j+1)*max_n_pic]
         
         
@@ -142,8 +143,8 @@ def myGenerator(data, max_n_pic, batch_size, shuffle=False):
 data_train = data[:-1600]
 data_test = data[-1600:]
 batch_size = 16
-# gen = myGenerator(data_train,1600,batch_size,shuffle=False)
-# stop
+gen = myGenerator(data_train,1600,batch_size,shuffle=False)
+stop
 
 model.fit_generator(myGenerator(data_train,1600,batch_size,shuffle=False),
                      samples_per_epoch=len(data_train)-(len(data_train)%batch_size),

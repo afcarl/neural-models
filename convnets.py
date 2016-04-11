@@ -15,13 +15,16 @@ from customlayers import Convolution2DGroup, CrossChannelNormalization
 import numpy as np
 
 from copy import deepcopy
-
+#from joblib import Parallel, delayed
+from multiprocessing import Pool
 
 from os.path import join
 
 from scipy.misc import imread, imresize, imsave
 
 import pdb
+
+from time import time
 
 def convnet(network, weights_path=None, output_layer=None, convolutionize=False,
             trainable=None):
@@ -312,7 +315,7 @@ def AlexNet(weights_path=None):
     
               
 
-def preprocess_image_batch(image_paths, img_width=224, img_height=224):
+def preprocess_image_batch(image_paths, img_width=256, img_height=256, img_mean=None, out=None):
     img_list = []
     for im_path in image_paths:
         
@@ -322,24 +325,30 @@ def preprocess_image_batch(image_paths, img_width=224, img_height=224):
         #pdb.set_trace()
         img[:,:,[0,1,2]] = img[:,:,[2,1,0]]
         # We normalize the colors with the empirical means on the training set
-        #img[:, :, 0] -= 103.939
-        #img[:, :, 1] -= 116.779
-        #img[:, :, 2] -= 123.68
-        img = img.transpose((2, 0, 1))
+        if img_mean is not None:
+            img = img - img_mean
         img_list.append(img)
 
     img_batch = np.stack(img_list, axis=0)
-    return img_batch
+    if out is not None:
+        out.append(img_batch)
+    else:
+        return img_batch
 
-def preprocess_image_batch2(image_paths, out=None):
+
+
+
+
+    
+def preprocess_image_batch2(image_paths, out=None, n_jobs=1):
     img_list = []
     img_size = 256
     crop_size = 227
 
     img_mean = np.load("img_mean.npy")
     img_mean = img_mean.astype('float32')
+    
     for im_path in image_paths:
-        
         img = imresize(imread(im_path, mode='RGB'), (img_size, img_size))
         img = img.astype('float32')
         # We permute the colors to get them in the BGR order
@@ -348,8 +357,12 @@ def preprocess_image_batch2(image_paths, out=None):
         img = img - img_mean
         img = img[:, (img_size-crop_size)/2:-(img_size-crop_size)/2,
                   (img_size-crop_size)/2:-(img_size-crop_size)/2]
-        
         img_list.append(img)
+
+    
+    p = Pool(processes=n_jobs)
+    img_list = p.map(Preprocessor(img_size,img_mean,crop_size),
+                     image_paths)
 
     img_batch = np.stack(img_list, axis=0)
     if out == None:
