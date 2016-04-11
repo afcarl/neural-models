@@ -34,6 +34,8 @@ app = Flask(__name__)
 # Set logging level to error
 import logging
 log = logging.getLogger('werkzeug')
+loghandler = logging.StreamHandler(stream=sys.stdout)
+log.addHandler(loghandler)
 log.setLevel(logging.ERROR)
 
 @app.route("/detect", methods=['POST'])
