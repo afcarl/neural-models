@@ -1,38 +1,33 @@
 #!/usr/bin/python
 # Usage:
 #   $ python porn_detection.py 0.0.0.0 5234 /mnt/data/datasets &
-#   $ curl -XPOST -F "file=@my_porn_image.jpg" http://porndetection:5234/detect
+#   $ curl -XPOST -F "file=@my_porn_image.jpg" http://0.0.0.0:5234/detect
 
 
-import sys
-
-import numpy as np
-
+from flask import Flask, request
 import json
-
-import os
-from os import listdir
-from os.path import isfile, join
-
-from convnets import convnet, preprocess_image_batch, preprocess_image_batch2
 from keras.utils import np_utils
 from keras.models import Sequential
 from keras.layers.core import Dense, Dropout
 from keras.optimizers import SGD
 from keras.preprocessing.image import ImageDataGenerator
-
+import logging
+import numpy as np
+import os
+from os import listdir
+from os.path import isfile, join
 import pickle as pkl
-
 import random
-
-from flask import Flask, request
+import sys
+import tempfile
 import traceback
 from werkzeug import secure_filename
+
+from convnets import convnet, preprocess_image_batch, preprocess_image_batch2
 
 app = Flask(__name__)
 
 # Set logging level to error
-import logging
 log = logging.getLogger('werkzeug')
 loghandler = logging.StreamHandler(stream=sys.stdout)
 log.addHandler(loghandler)
@@ -45,12 +40,12 @@ def detect():
       file = request.files['file']
       if file:
         filename = secure_filename(file.filename)
-        # TODO pass opened file directly instead of reopening
-        file.save("/tmp/image.jpg")
-        img_paths = ["/tmp/image.jpg"]
-        X = preprocess_image_batch2(img_paths)
-        y = model.predict(X)
-        return json.dumps({ "probability": y[0][0] })
+        with tempfile.TemporaryFile() as tmp:
+          file.save(tmp.name)
+          img_paths = [tmp.name]
+          X = preprocess_image_batch2(img_paths)
+          y = model.predict(X)
+          return json.dumps({ "probability": y[0][0] })
       else:
         return None
     except:
