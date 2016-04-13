@@ -1,7 +1,6 @@
 #!/usr/bin/python
 # Usage:
 #   $ python porn_detection.py 0.0.0.0 5234 /mnt/data/datasets &
-#   $ curl -XPOST -F "file=@my_porn_image.jpg" http://0.0.0.0:5234/detect
 
 
 from flask import Flask, request
@@ -37,22 +36,28 @@ log.setLevel(logging.ERROR)
 def detect():
     global model
     try:
-      file = request.files['file']
-      if file:
+      fileids = []
+      tempfiles = []
+      for (fileid, file) in request.files.items():
         filename = secure_filename(file.filename)
-        with tempfile.TemporaryFile() as tmp:
-          file.save(tmp.name)
-          img_paths = [tmp.name]
-          X = preprocess_image_batch2(img_paths)
-          y = model.predict(X)
-          return json.dumps({ "probability": y[0][0] })
+        tmp = tempfile.TemporaryFile()
+        file.save(tmp.name)
+        fileids.append(fileid)
+        tempfiles.append(tmp)
+      if len(tempfiles) > 0:
+        img_paths = [tmp.name for tmp in tempfiles]
+        X = preprocess_image_batch2(img_paths)
+        y = model.predict(X)
+        for tmp in tempfiles:
+          tmp.close()
+        probs = [{"id": fileid, "prob": prob[0]} for (fileid, prob) in zip(fileids, y)]
+        return json.dumps({ "results": probs })
       else:
         return None
     except:
       print("Exception occured: ")
       traceback.print_exc(file=sys.stdout)
       return "{}", 500
-
 
 if __name__ == "__main__":
     if len(sys.argv) != 4:

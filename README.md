@@ -5,5 +5,6 @@ To use the porn detection service, you need the model file porn.h5
 docker build -f Dockerfile.dependencies -t neural-models-dependencies .
 docker build --no-cache -t neural-models .
 docker run -p 5234:5234 -v /mnt/data/NeuralModels:/data neural-models
-curl -XPOST -F "file=@my_porn_image.jpg" http://0.0.0.0:5234/detect
+curl -XPOST -F "file1=@my_porn_image.jpg" -F "file2=@my_non_porn_image.jpg" http://0.0.0.0:5234/detect
+# {"results": [{"id": "file1", "prob": 1.0}, {"id": "file2", "prob": 0.0}]}
 ```
