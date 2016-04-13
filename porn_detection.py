@@ -76,4 +76,4 @@ if __name__ == "__main__":
     model.compile(optimizer=sgd, loss='binary_crossentropy')
 
     print "Ready"
-    app.run(debug=False, host=sys.argv[1], port=sys.argv[2], threaded=True)
+    app.run(debug=False, host=sys.argv[1], port=sys.argv[2], threaded=False)
