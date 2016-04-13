@@ -40,7 +40,7 @@ def detect():
       tempfiles = []
       for (fileid, file) in request.files.items():
         filename = secure_filename(file.filename)
-        tmp = tempfile.TemporaryFile()
+        tmp = tempfile.NamedTemporaryFile()
         file.save(tmp.name)
         fileids.append(fileid)
         tempfiles.append(tmp)
