@@ -1,10 +1,11 @@
 #!/usr/bin/python
 # Usage:
-#   $ python porn_detection.py 0.0.0.0 5234 /mnt/data/datasets &
+#   $ python porn_detection.py 0.0.0.0 5234 /path/to/porn.h5 &
 
 
 from flask import Flask, request
 import json
+import hashlib
 from keras.utils import np_utils
 from keras.models import Sequential
 from keras.layers.core import Dense, Dropout
@@ -21,6 +22,7 @@ import sys
 import tempfile
 import traceback
 from werkzeug import secure_filename
+from werkzeug.contrib.cache import SimpleCache
 
 from convnets import convnet, preprocess_image_batch, preprocess_image_batch2
 
@@ -32,25 +34,41 @@ loghandler = logging.StreamHandler(stream=sys.stdout)
 log.addHandler(loghandler)
 log.setLevel(logging.ERROR)
 
+# Create a cache, in case an image is resubmitted
+CACHE_TIMEOUT = 300
+cache = SimpleCache()
+
 @app.route("/detect", methods=['POST'])
 def detect():
     global model
     try:
       fileids = []
       tempfiles = []
+      filehashes = []
+      cachedresults = []
       for (fileid, file) in request.files.items():
-        filename = secure_filename(file.filename)
-        tmp = tempfile.NamedTemporaryFile()
-        file.save(tmp.name)
-        fileids.append(fileid)
-        tempfiles.append(tmp)
-      if len(tempfiles) > 0:
-        img_paths = [tmp.name for tmp in tempfiles]
-        X = preprocess_image_batch2(img_paths)
-        y = model.predict(X)
-        for tmp in tempfiles:
-          tmp.close()
-        probs = [{"id": fileid, "prob": prob[0]} for (fileid, prob) in zip(fileids, y)]
+        hash = hashlib.sha256(file.read()).digest()
+        prob = cache.get(hash)
+        if prob:
+          cachedresults.append((fileid, prob))
+        else:
+          tmp = tempfile.NamedTemporaryFile()
+          file.seek(0)
+          file.save(tmp.name)
+          fileids.append(fileid)
+          tempfiles.append(tmp)
+          filehashes.append(hash)
+      if len(tempfiles) + len(cachedresults) > 0:
+        y = []
+        if len(tempfiles) > 0:
+          img_paths = [tmp.name for tmp in tempfiles]
+          X = preprocess_image_batch2(img_paths)
+          y = model.predict(X)
+          for tmp in tempfiles:
+            tmp.close()
+        for (hash, prob) in zip(filehashes, y):
+          cache.set(hash, prob, CACHE_TIMEOUT)
+        probs = [{"id": fileid, "prob": prob[0]} for (fileid, prob) in zip(fileids, y) + cachedresults]
         return json.dumps({ "results": probs })
       else:
         return None
