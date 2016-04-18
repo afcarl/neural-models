@@ -1,4 +1,4 @@
-FROM debian:jessie
+FROM kaixhin/cuda-theano:7.5
 MAINTAINER Didier Marin <marin@heuritech.com>
 
 RUN apt-get clean \
@@ -11,8 +11,5 @@ RUN pip install --upgrade pip \
     && pip install --upgrade numpy \
     && pip install --upgrade scipy
 
-# && pip install --upgrade PIL      # necessary ??
-
-RUN pip install git+https://github.com/Theano/Theano.git
 RUN pip install git+https://github.com/fchollet/keras.git@b587aeee1c1be3633a56b945af3e7c2c303369ca
 RUN pip install Flask==0.10.1
