@@ -15,6 +15,8 @@ from keras.optimizers import SGD
 from keras.preprocessing.image import ImageDataGenerator
 from keras.regularizers import l2
 
+from classification_train import ImageGenerator, preprocessing
+
 import pickle as pkl
 
 import threading
@@ -24,14 +26,16 @@ import random
 import time
 import pdb
 
-mypath='/mnt/data/datasets/flickrdataset/'
 
+#########################################
+####### WE BUILD THE DATA LIST ##########
+
+mypath='/mnt/data/datasets/flickrdataset/'
 
 labels={'bikinis':0, 'lingeries':1, 'porn':2, 'porn/realgirls':2,
         'swimsuits':3,'sports_filtered':4,'women_filtered':5,
         'babies_filtered':6,'imagenet':7}
-# reject_folders = ['bikinis', 'lingeries', 'porn', 'swimsuits']
-# accept_folders = ['sports','women','babies']
+
 
 folders = ['bikinis','lingeries','porn', 'porn/realgirls', 'swimsuits','sports_filtered','women_filtered','babies_filtered']
 
@@ -39,7 +43,6 @@ folders = ['bikinis','lingeries','porn', 'porn/realgirls', 'swimsuits','sports_f
 files = [(join(mypath,fold,f),labels[fold]) for fold in folders \
          for f in listdir(join(mypath, fold)) if f[-3:].lower() == "jpg"] 
 
-stop
 image_folder = "/mnt/data/lblier/ImageNet/"
 files.extend([(join(image_folder,"ILSVRC2012_val_"+\
                     str(i+1).zfill(8)+".JPEG"),7) \
@@ -52,8 +55,29 @@ files.extend([(join(mypath,fold,f),2) for fold in ["ebony","gayporn"] \
 
 
 data = files
-
 data = [(f, 1) if l in [0,1,2,3] else (f,0) for (f,l) in data]
+
+
+##########################################
+######### WE PREPROCESS THE DATA #########
+preprocessing_done = True
+if not preprocessing_done:
+    
+    print("Preprocessing of the data ...")
+    train_files, test_files,train_set, test_set = preprocessing(data, "porn_classif/") 
+
+else:
+    train_files = pkl.load(open("porn_classif/train_files.pkl","r"))
+    test_files = pkl.load(open("porn_classif/test_files.pkl","r"))
+    train_set = "porn_classif/train_set.h5"
+    test_set = "porn_classif/test_set.h5"
+
+    
+
+    
+###########################################
+######### WE CHOOSE THE MODEL #############
+
 random.shuffle(data)
 
 model = convnet('alexnet', weights_path='weights/alexnet_weights.h5',
@@ -62,97 +86,54 @@ model = convnet('alexnet', weights_path='weights/alexnet_weights.h5',
 model.add(Dense(1,
                 activation='sigmoid',
                 name='classifier',
-                W_regularizer=l2(0.01)))
-sgd = SGD(lr=.5, decay=1.e-6, momentum=0., nesterov=False)
+                W_regularizer=l2(0.001)))
+sgd = SGD(lr=.1, decay=1.e-6, momentum=0.9, nesterov=False)
 model.compile(optimizer=sgd, loss='binary_crossentropy')
 
 
-
-
-def myGenerator(data, max_n_pic, batch_size, shuffle=False):
-    datagen = ImageDataGenerator(featurewise_center=False,
-                                 samplewise_center=False,
-                                 featurewise_std_normalization=False,
-                                 samplewise_std_normalization=False,
-                                 zca_whitening=False,
-                                 rotation_range=0.,
-                                 width_shift_range=0.,
-                                 height_shift_range=0.,
-                                 shear_range=0.,
-                                 horizontal_flip=False,
-                                 vertical_flip=False)
-
-    
-    
-    Y = np.array([l for (f,l) in data])
-    #Y =  np_utils.to_categorical(Y, 2)
-
-    files_processed = [f for (f,l) in data]
-
-    n_step = len(data)/max_n_pic
-    if len(data) % max_n_pic != 0:
-        n_step += 1
-
-    if shuffle:
-        permutation = np.random.permutation(n_step)
-    else:
-        permutation = np.arange(n_step)
-    k = 0
-    j = permutation[k]
-    print "ping"
-    X_train = preprocess_image_batch2(files_processed[j*max_n_pic:(j+1)*max_n_pic],
-                                      n_jobs=1)
-    print "pong"
-    Y_train = Y[j*max_n_pic:(j+1)*max_n_pic]
-    datagen.fit(X_train)
-    while True:
-        k = (k + 1)  % n_step
-        j = permutation[k]
-        # out_xtrain = []
-        # t_xtrain = threading.Thread(target=preprocess_image_batch2,
-        #                             args=(files_processed[j*max_n_pic:(j+1)*max_n_pic],
-        #                                   out_xtrain,20))
-        # t_xtrain.daemon=True
-        # t_xtrain.start()
-        gen = datagen.flow(X_train,Y_train,
-                           batch_size=batch_size,shuffle=shuffle)
-        x,y = next(gen)
-        for l in range(X_train.shape[0]/batch_size - 1):
-            out_xy = []
-            def aux(gen, out_xy):
-                out_xy.append(next(gen))
-            t_xy = threading.Thread(target=aux,
-                                    args=(gen, out_xy))
-            t_xy.daemon = True
-            t_xy.start()
-            yield x,y
-            t_xy.join()
-            x,y = out_xy[0]
-            # x,y = next(gen)
-
-        
-        #t_xtrain.join()
-        # X_train = out_xtrain[0]
-        X_train = preprocess_image_batch2(files_processed[j*max_n_pic:(j+1)*max_n_pic],
-                                          n_jobs=1)
-        Y_train = Y[j*max_n_pic:(j+1)*max_n_pic]
-        
-        
-        
-
-data_train = data[:-1600]
-data_test = data[-1600:]
 batch_size = 16
-gen = myGenerator(data_train,1600,batch_size,shuffle=False)
-stop
+       
 
-model.fit_generator(myGenerator(data_train,1600,batch_size,shuffle=False),
-                     samples_per_epoch=len(data_train)-(len(data_train)%batch_size),
-                     nb_epoch=2,
-                     validation_data=myGenerator(data_test,800,16),
-                     nb_val_samples=1600,
-                     show_accuracy=True)
+
+gen_train = ImageGenerator(train_set,227,
+                           batch_per_cache=100,
+                           batch_size=batch_size,
+                           shuffle=False)
+gen_test = ImageGenerator(test_set,227,
+                          batch_per_cache=100,
+                          batch_size=batch_size,
+                          shuffle=True)
+
+model.fit_generator(gen_train,
+                    samples_per_epoch=len(train_files),
+                    nb_epoch=10,
+                    validation_data=gen_test,
+                    nb_val_samples=len(test_files),
+                    show_accuracy=True)
  
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 # for e in range(n_epoch):
 #     for i in range(0,len(data),max_n_pic):
         

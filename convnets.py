@@ -315,7 +315,7 @@ def AlexNet(weights_path=None):
     
               
 
-def preprocess_image_batch(image_paths, img_width=256, img_height=256, img_mean=None, out=None):
+def preprocess_image_batch(image_paths, img_width=256, img_height=256, out=None):
     img_list = []
     for im_path in image_paths:
         
@@ -325,12 +325,14 @@ def preprocess_image_batch(image_paths, img_width=256, img_height=256, img_mean=
         #pdb.set_trace()
         img[:,:,[0,1,2]] = img[:,:,[2,1,0]]
         # We normalize the colors with the empirical means on the training set
-        if img_mean is not None:
-            img = img - img_mean
+        img[:, :, 0] -= 103.939
+        img[:, :, 1] -= 116.779
+        img[:, :, 2] -= 123.68
+        img = img.transpose((2, 0, 1))
         img_list.append(img)
 
     img_batch = np.stack(img_list, axis=0)
-    if out is not None:
+    if not out is None:
         out.append(img_batch)
     else:
         return img_batch
