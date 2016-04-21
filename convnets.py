@@ -312,6 +312,52 @@ def AlexNet(weights_path=None):
     return model
 
 
+def load_coeff(path='../NeuralModels/parameters_releasing/'):
+    model = convnet('alexnet')
+    suf = '_65.npy'
+    W_list = []
+    b_list = []
+    for i in range(8):
+        if i in [1, 3, 4]:
+            W0, W1 = np.load(path+'W0_'+str(i)+suf), np.load(path+'W1_'+str(i)+suf)
+            b0, b1 = np.load(path+'b0_'+str(i)+suf), np.load(path+'b1_'+str(i)+suf)
+
+            W0 = W0.transpose((3, 0, 1, 2))
+            W1 = W1.transpose((3, 0, 1, 2))
+            W_list.append([W0, W1])
+            b_list.append([b0, b1])
+        else:
+            W = np.load(path+'W_'+str(i)+suf)
+            b = np.load(path+'b_'+str(i)+suf)
+            if i in [0, 2]:
+                W = W.transpose((3, 0, 1, 2))
+            W_list.append(W)
+            b_list.append(b)
+
+
+    
+
+    for i in range(1,6):
+        layer = next(layer for layer in model.layers if layer.name == 'conv_'+str(i))
+        if i in [2, 4, 5]:
+            conv0 = layer.nodes['conv0']
+            conv1 = layer.nodes['conv1']
+            conv0.set_weights([W_list[i-1][0], b_list[i-1][0]])
+            conv1.set_weights([W_list[i-1][1], b_list[i-1][1]])
+        else:
+            layer.set_weights([W_list[i-1], b_list[i-1]])
+
+    for i in range(1, 3):
+        layer = next(layer for layer in model.layers if layer.name == 'dense_'+str(i))
+        layer.set_weights([W_list[i+4], b_list[i+4]])
+
+    layer = next(layer for layer in model.layers if layer.name == 'softmax')
+    layer.set_weights([W_list[7], b_list[7]])
+
+    return model
+        
+    
+
     
               
 
@@ -342,12 +388,12 @@ def preprocess_image_batch(image_paths, img_width=256, img_height=256, out=None)
 
 
     
-def preprocess_image_batch2(image_paths, out=None, n_jobs=1):
+def preprocess_image_batch2(image_paths, out=None):
     img_list = []
     img_size = 256
     crop_size = 227
 
-    img_mean = np.load("img_mean.npy")
+    img_mean = np.load("../NeuralModels/img_mean.npy")
     img_mean = img_mean.astype('float32')
     
     for im_path in image_paths:
@@ -357,14 +403,14 @@ def preprocess_image_batch2(image_paths, out=None, n_jobs=1):
         #pdb.set_trace()
         img = img.transpose((2, 0, 1))
         img = img - img_mean
-        img = img[:, (img_size-crop_size)/2:-(img_size-crop_size)/2,
-                  (img_size-crop_size)/2:-(img_size-crop_size)/2]
+        # img = img[:, (img_size-crop_size)/2:-(img_size-crop_size)/2,
+        #           (img_size-crop_size)/2:-(img_size-crop_size)/2]
         img_list.append(img)
 
     
-    p = Pool(processes=n_jobs)
-    img_list = p.map(Preprocessor(img_size,img_mean,crop_size),
-                     image_paths)
+    # p = Pool(processes=n_jobs)
+    # img_list = p.map(Preprocessor(img_size,img_mean,crop_size),
+    #                  image_paths)
 
     img_batch = np.stack(img_list, axis=0)
     if out == None:

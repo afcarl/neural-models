@@ -141,16 +141,13 @@ def ImageGenerator(data, img_size, batch_per_cache=100, batch_size=16,
         labels = np.array([l for (f,l) in data])
         n_samples = len(data)
 
-    logging.debug("Data loaded")
-    logging.debug("Data shape : "+str(imgs.shape))
-
     n_labels = len(set(labels))
     if n_labels <= 1:
         raise ValueError("Can't learn to classify with only one class")
     elif n_labels == 2:
         Y = labels
     else:
-        Y = np_utils.to_categorical(Y, n_labels)
+        Y = np_utils.to_categorical(labels, n_labels)
     
     n_step = len(data)/cache_size
     if len(data) % cache_size != 0:
@@ -161,15 +158,10 @@ def ImageGenerator(data, img_size, batch_per_cache=100, batch_size=16,
     j = permutation[k]
 
     start,stop = j*cache_size,(j+1)*cache_size
-    logging.debug("Loading cache ...")
-    logging.debug("Cache index : "+str((start, stop)))
     if preloaded:
         X_cache = load_img_h5(imgs,start,stop)
     else:
-        X_cache = preprocess_image_batch(files[start,stop])
-
-    logging.debug("Cache loaded")
-    logging.debug("Cache shape : "+str(X_cache.shape))
+        X_cache = preprocess_image_batch2(files[start:stop])
     
     Y_cache = Y[start:stop]
     datagen.fit(X_cache)
@@ -187,7 +179,7 @@ def ImageGenerator(data, img_size, batch_per_cache=100, batch_size=16,
                               args=(imgs,start,stop,out_xcache))
                               #kwargs={"out":out_xcache})
         else:
-            t_xcache = Thread(target=preprocess_image_batch,
+            t_xcache = Thread(target=preprocess_image_batch2,
                               args=(files[start:stop], out_xcache))
                               #kwargs={"out":out_xcache})
         t_xcache.daemon=True
