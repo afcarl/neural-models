@@ -249,7 +249,7 @@ def VGG_19(weights_path=None):
 def AlexNet(weights_path=None):
     inputs = Input(shape=(3,227,227))
     
-    conv_1 = ZeroPadding2D((0,0),input_shape=(3,227,227))(inputs)
+    #conv_1 = ZeroPadding2D((0,0),input_shape=(3,227,227))(inputs)
     conv_1 = Convolution2D(96, 11, 11,
                            subsample=(4,4),
                            activation='relu',
@@ -259,17 +259,22 @@ def AlexNet(weights_path=None):
     conv_2 = crosschannelnormalization()(conv_2)
     conv_2 = ZeroPadding2D((2,2))(conv_2)
     
-    conv_2_1 = splittensor(ratio_split=2,id_split=0)(conv_2)
-    conv_2_1 = Convolution2D(128,5,5,subsample=(1,1),
-                             activation="relu",
-                             name='conv_2_1')(conv_2_1)
+    # conv_2_1 = splittensor(ratio_split=2,id_split=0)(conv_2)
+    # conv_2_1 = Convolution2D(128,5,5,subsample=(1,1),
+    #                          activation="relu",
+    #                          name='conv_2_1')(conv_2_1)
     
-    conv_2_2 = splittensor(ratio_split=2,id_split=1)(conv_2)
-    conv_2_2 = Convolution2D(128,5,5,subsample=(1,1),
-                             activation="relu",
-                             name='conv_2_2')(conv_2_2)
+    # conv_2_2 = splittensor(ratio_split=2,id_split=1)(conv_2)
+    # conv_2_2 = Convolution2D(128,5,5,subsample=(1,1),
+    #                          activation="relu",
+    #                          name='conv_2_2')(conv_2_2)
 
-    conv_2 = merge([conv_2_1,conv_2_2], mode='concat',concat_axis=1)
+    # conv_2 = merge([conv_2_1,conv_2_2], mode='concat',concat_axis=1)
+    conv_2 = merge([
+        Convolution2D(128,5,5,activation="relu",name='conv_2_'+str(i+1))(
+            splittensor(ratio_split=2,id_split=i)(conv_2)
+        ) for i in range(2)], mode='concat',concat_axis=1)
+
     
     conv_3 = MaxPooling2D((3, 3), strides=(2, 2))(conv_2)
     conv_3 = crosschannelnormalization()(conv_3)
@@ -282,31 +287,38 @@ def AlexNet(weights_path=None):
     
     conv_4 = ZeroPadding2D((1,1))(conv_3)
 
-    conv_4_1 = splittensor(ratio_split=2,id_split=0)(conv_4)
-    conv_4_1 = Convolution2D(192,3,3,subsample=(1,1),
-                             activation="relu",
-                             name='conv_4_1')(conv_4_1)
+    # conv_4_1 = splittensor(ratio_split=2,id_split=0)(conv_4)
+    # conv_4_1 = Convolution2D(192,3,3,subsample=(1,1),
+    #                          activation="relu",
+    #                          name='conv_4_1')(conv_4_1)
     
-    conv_4_2 = splittensor(ratio_split=2,id_split=1)(conv_4)
-    conv_4_2 = Convolution2D(192,3,3,subsample=(1,1),
-                             activation="relu",
-                             name='conv_4_2')(conv_4_2)
+    # conv_4_2 = splittensor(ratio_split=2,id_split=1)(conv_4)
+    # conv_4_2 = Convolution2D(192,3,3,subsample=(1,1),
+    #                          activation="relu",
+    #                          name='conv_4_2')(conv_4_2)
 
-    conv_4 = merge([conv_4_1,conv_4_2], mode='concat',concat_axis=1)
+    # conv_4 = merge([conv_4_1,conv_4_2], mode='concat',concat_axis=1)
+    conv_4 = merge([
+        Convolution2D(192,3,3,activation="relu",name='conv_4_'+str(i+1))(
+            splittensor(ratio_split=2,id_split=i)(conv_4)
+        ) for i in range(2)], mode='concat',concat_axis=1)
+
     
     conv_5 = ZeroPadding2D((1,1))(conv_4)
-
-    conv_5_1 = splittensor(ratio_split=2,id_split=0)(conv_5)
-    conv_5_1 = Convolution2D(128,3,3,subsample=(1,1),
-                             activation="relu",
-                             name='conv_5_1')(conv_5_1)
+    conv_5 = merge([
+        Convolution2D(128,3,3,activation="relu",name='conv_5_'+str(i+1))(
+            splittensor(ratio_split=2,id_split=i)(conv_5)
+        ) for i in range(2)])
     
-    conv_5_2 = splittensor(ratio_split=2,id_split=1)(conv_5)
-    conv_5_2 = Convolution2D(128,3,3,subsample=(1,1),
-                             activation="relu",
-                             name='conv_5_2')(conv_5_2)
-
-    conv_5 = merge([conv_5_1,conv_5_2], mode='concat',concat_axis=1)
+    # conv_5_1 = splittensor(ratio_split=2,id_split=0)(conv_5)
+    # conv_5_1 = Convolution2D(128,3,3,subsample=(1,1),
+    #                          activation="relu",
+    #                          name='conv_5_1')(conv_5_1)
+    # conv_5_2 = splittensor(ratio_split=2,id_split=1)(conv_5)
+    # conv_5_2 = Convolution2D(128,3,3,subsample=(1,1),
+    #                          activation="relu",
+    #                          name='conv_5_2')(conv_5_2)
+    # conv_5 = merge([conv_5_1,conv_5_2], mode='concat',concat_axis=1)
 
     
     dense_1 = MaxPooling2D((3, 3), strides=(2,2))(conv_5)
@@ -366,7 +378,7 @@ def load_coeff(path='parameters_releasing/'):
 
     for i in [1,2]:
         layer = next(layer for layer in model.layers if layer.name == 'dense_'+str(i))
-        layer.set_weights([1./2 * W_list[i+4], b_list[i+4]])
+        layer.set_weights([2. * W_list[i+4], b_list[i+4]])
 
     layer = next(layer for layer in model.layers if layer.name == 'softmax')
     layer.set_weights([W_list[7], b_list[7]])
