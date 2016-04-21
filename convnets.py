@@ -366,7 +366,7 @@ def load_coeff(path='parameters_releasing/'):
 
     for i in [1,2]:
         layer = next(layer for layer in model.layers if layer.name == 'dense_'+str(i))
-        layer.set_weights([W_list[i+4], b_list[i+4]])
+        layer.set_weights([1./2 * W_list[i+4], b_list[i+4]])
 
     layer = next(layer for layer in model.layers if layer.name == 'softmax')
     layer.set_weights([W_list[7], b_list[7]])
