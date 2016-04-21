@@ -186,9 +186,9 @@ def ImageGenerator(data, img_size, batch_per_cache=100, batch_size=16,
                               #kwargs={"out":out_xcache})
         else:
             t_xcache = Thread(target=preprocess_image_batch,
-                              args=(files[start:stop], 256, 256,
-                                    out_xcache))
-                              #kwargs={"out":out_xcache})
+                              args=(files[start:stop], (256, 256)),
+                              #      out_xcache))
+                              kwargs={"out":out_xcache})
         t_xcache.daemon=True
         t_xcache.start()
         gen = datagen.flow(X_cache,Y_cache,

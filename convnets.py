@@ -103,8 +103,9 @@ def convnet(network, weights_path=None, output_layer=None, convolutionize=False,
 
     if convolutionize:
         conv_stride = (5, 5)
-        mod_conv = Sequential()
+        #mod_conv = Sequential()
 
+    
         first_dense = True
         for layer in model.layers:
             layer_type = layer.get_config()['name']
@@ -249,79 +250,35 @@ def VGG_19(weights_path=None):
 def AlexNet(weights_path=None):
     inputs = Input(shape=(3,227,227))
     
-    #conv_1 = ZeroPadding2D((0,0),input_shape=(3,227,227))(inputs)
-    conv_1 = Convolution2D(96, 11, 11,
-                           subsample=(4,4),
-                           activation='relu',
-                           name='conv_1')(conv_1)
+    conv_1 = Convolution2D(96, 11, 11,subsample=(4,4),activation='relu',
+                           name='conv_1')(inputs)
     
     conv_2 = MaxPooling2D((3, 3), strides=(2,2))(conv_1)
-    conv_2 = crosschannelnormalization()(conv_2)
+    conv_2 = crosschannelnormalization(name="convpool_1")(conv_2)
     conv_2 = ZeroPadding2D((2,2))(conv_2)
-    
-    # conv_2_1 = splittensor(ratio_split=2,id_split=0)(conv_2)
-    # conv_2_1 = Convolution2D(128,5,5,subsample=(1,1),
-    #                          activation="relu",
-    #                          name='conv_2_1')(conv_2_1)
-    
-    # conv_2_2 = splittensor(ratio_split=2,id_split=1)(conv_2)
-    # conv_2_2 = Convolution2D(128,5,5,subsample=(1,1),
-    #                          activation="relu",
-    #                          name='conv_2_2')(conv_2_2)
-
-    # conv_2 = merge([conv_2_1,conv_2_2], mode='concat',concat_axis=1)
     conv_2 = merge([
         Convolution2D(128,5,5,activation="relu",name='conv_2_'+str(i+1))(
             splittensor(ratio_split=2,id_split=i)(conv_2)
-        ) for i in range(2)], mode='concat',concat_axis=1)
+        ) for i in range(2)], mode='concat',concat_axis=1,name="conv_2")
 
-    
     conv_3 = MaxPooling2D((3, 3), strides=(2, 2))(conv_2)
     conv_3 = crosschannelnormalization()(conv_3)
     conv_3 = ZeroPadding2D((1,1))(conv_3)
-    conv_3 = Convolution2D(384,3,3,
-                           subsample=(1,1),
-                           activation='relu',
-                           name='conv_3')(conv_3)
+    conv_3 = Convolution2D(384,3,3,activation='relu',name='conv_3')(conv_3)
 
-    
     conv_4 = ZeroPadding2D((1,1))(conv_3)
-
-    # conv_4_1 = splittensor(ratio_split=2,id_split=0)(conv_4)
-    # conv_4_1 = Convolution2D(192,3,3,subsample=(1,1),
-    #                          activation="relu",
-    #                          name='conv_4_1')(conv_4_1)
-    
-    # conv_4_2 = splittensor(ratio_split=2,id_split=1)(conv_4)
-    # conv_4_2 = Convolution2D(192,3,3,subsample=(1,1),
-    #                          activation="relu",
-    #                          name='conv_4_2')(conv_4_2)
-
-    # conv_4 = merge([conv_4_1,conv_4_2], mode='concat',concat_axis=1)
     conv_4 = merge([
         Convolution2D(192,3,3,activation="relu",name='conv_4_'+str(i+1))(
             splittensor(ratio_split=2,id_split=i)(conv_4)
-        ) for i in range(2)], mode='concat',concat_axis=1)
+        ) for i in range(2)], mode='concat',concat_axis=1,name="conv_4")
 
-    
     conv_5 = ZeroPadding2D((1,1))(conv_4)
     conv_5 = merge([
         Convolution2D(128,3,3,activation="relu",name='conv_5_'+str(i+1))(
             splittensor(ratio_split=2,id_split=i)(conv_5)
-        ) for i in range(2)])
+        ) for i in range(2)], mode='concat',concat_axis=1,name="conv_5")
     
-    # conv_5_1 = splittensor(ratio_split=2,id_split=0)(conv_5)
-    # conv_5_1 = Convolution2D(128,3,3,subsample=(1,1),
-    #                          activation="relu",
-    #                          name='conv_5_1')(conv_5_1)
-    # conv_5_2 = splittensor(ratio_split=2,id_split=1)(conv_5)
-    # conv_5_2 = Convolution2D(128,3,3,subsample=(1,1),
-    #                          activation="relu",
-    #                          name='conv_5_2')(conv_5_2)
-    # conv_5 = merge([conv_5_1,conv_5_2], mode='concat',concat_axis=1)
-
-    
-    dense_1 = MaxPooling2D((3, 3), strides=(2,2))(conv_5)
+    dense_1 = MaxPooling2D((3, 3), strides=(2,2),name="convpool_5")(conv_5)
     dense_1 = Flatten()(dense_1)
     dense_1 = Dense(4096, activation='relu',name='dense_1')(dense_1)
 
@@ -361,24 +318,20 @@ def load_coeff(path='parameters_releasing/'):
                 W = W.transpose((3, 0, 1, 2))
             W_list.append(W)
             b_list.append(b)
-
-
-    
-
+        
     for i in [1,3]:
-        layer = next(layer for layer in model.layers if layer.name == 'conv_'+str(i))
+        layer = model.get_layer(name='conv_'+str(i))
         layer.set_weights([W_list[i-1], b_list[i-1]])
 
     for i in [2,4,5]:
         for j in [1,2]:
-            layer = next(layer for layer in model.layers \
-                         if layer.name == '_'.join(['conv',str(i),str(j)]))
+            layer = model.get_layer(name='_'.join(['conv',str(i),str(j)]))
             layer.set_weights([W_list[i-1][j-1], b_list[i-1][j-1]])
 
 
     for i in [1,2]:
-        layer = next(layer for layer in model.layers if layer.name == 'dense_'+str(i))
-        layer.set_weights([2. * W_list[i+4], b_list[i+4]])
+        layer = model.get_layer(name='dense_'+str(i))
+        layer.set_weights([1./2*W_list[i+4], 1./2*b_list[i+4]])
 
     layer = next(layer for layer in model.layers if layer.name == 'softmax')
     layer.set_weights([W_list[7], b_list[7]])
@@ -387,7 +340,7 @@ def load_coeff(path='parameters_releasing/'):
     
               
 
-def preprocess_image_batch(image_paths, img_width=256, img_height=256, out=None):
+def preprocess_image_batch(image_paths, img_size=(256,256), crop_size=None, out=None):
     img_list = []
 
     img_mean = np.load("../NeuralModels/img_mean.npy")
@@ -395,7 +348,7 @@ def preprocess_image_batch(image_paths, img_width=256, img_height=256, out=None)
 
     
     for im_path in image_paths:
-        img = imresize(imread(im_path, mode='RGB'), (img_width, img_height))
+        img = imresize(imread(im_path, mode='RGB'), (img_size))
         img = img.astype('float32')
         # We permute the colors to get them in the BGR order
         #pdb.set_trace()
@@ -406,6 +359,11 @@ def preprocess_image_batch(image_paths, img_width=256, img_height=256, out=None)
         # img[:, :, 2] -= 123.68
         img = img.transpose((2, 0, 1))
         img -= img_mean
+
+        if crop_size:
+            img = img[:,(img_size[0]-crop_size[0])//2:(img_size[0]+crop_size[0])//2
+                      ,(img_size[1]-crop_size[1])//2:(img_size[1]+crop_size[1])//2]
+            
         img_list.append(img)
 
     img_batch = np.stack(img_list, axis=0)
@@ -463,12 +421,16 @@ def deprocess_image(x):
 if __name__ == "__main__":
 
     # base_image = K.variable(preprocess_image('~/Pictures/cat.jpg'))
-    #im = preprocess_image_batch2(['cat.jpg'])
+    im = preprocess_image_batch(['cat.jpg'],(256,256),(227,227))
 
     # Test pretrained model
     #model = convnet('alexnet',convolutionize=False)
     model = load_coeff()
+    stoplayer = model.get_layer(name="dense_2")
+
+    new_model = Model(input = model.input, output=stoplayer.output)
     sgd = SGD(lr=0.1, decay=1e-6, momentum=0.9, nesterov=True)
-    model.compile(optimizer=sgd, loss='categorical_crossentropy')
-    out = model.predict(im)
+    new_model.compile(optimizer=sgd, loss='categorical_crossentropy')
+    out = new_model.predict(im)
+    out = out[0]
     

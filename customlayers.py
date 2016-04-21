@@ -5,7 +5,7 @@ from keras import backend as K
 
 
 
-def crosschannelnormalization(alpha = 1e-4, k=2, beta=0.75, n=5):
+def crosschannelnormalization(alpha = 1e-4, k=2, beta=0.75, n=5,**kwargs):
     """
     This is the function used for cross channel normalization in the original 
     Alexnet
@@ -20,14 +20,14 @@ def crosschannelnormalization(alpha = 1e-4, k=2, beta=0.75, n=5):
         scale = k
         for i in xrange(n):
             scale += alpha * extra_channels[:,i:i+ch,:,:]
-            scale = scale ** beta
+        scale = scale ** beta
         return X / scale
 
-    return Lambda(f, output_shape=lambda input_shape:input_shape)
+    return Lambda(f, output_shape=lambda input_shape:input_shape,**kwargs)
 
 
 
-def splittensor(axis=1, ratio_split=1, id_split=0):
+def splittensor(axis=1, ratio_split=1, id_split=0,**kwargs):
     def f(X):
         div = X.shape[axis] // ratio_split
 
@@ -49,7 +49,7 @@ def splittensor(axis=1, ratio_split=1, id_split=0):
         output_shape[axis] = output_shape[axis] // ratio_split
         return tuple(output_shape)
         
-    return Lambda(f,output_shape=lambda input_shape:g(input_shape))
+    return Lambda(f,output_shape=lambda input_shape:g(input_shape),**kwargs)
     
 
 
