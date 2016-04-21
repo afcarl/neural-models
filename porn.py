@@ -10,10 +10,11 @@ from os.path import isfile, join
 from convnets import convnet, preprocess_image_batch, preprocess_image_batch2
 from keras.utils import np_utils
 from keras.models import Sequential
-from keras.layers.core import Dense, Dropout
+from keras.layers import Dense, Dropout, Input
 from keras.optimizers import SGD
 from keras.preprocessing.image import ImageDataGenerator
 from keras.regularizers import l2
+from keras.models import Model
 
 from classification_train import ImageGenerator, preprocessing
 
@@ -80,36 +81,42 @@ else:
 
 random.shuffle(data)
 
-model = convnet('alexnet', weights_path='weights/alexnet_weights.h5',
+input = Input(shape=(3,227,227))
+alexnet = convnet('alexnet', weights_path='weights/alexnet_weights.h5',
                 output_layer='dense_2',
                 trainable=["None"])
-model.add(Dense(1,
-                activation='sigmoid',
-                name='classifier',
-                W_regularizer=l2(0.001)))
+
+filtered_img = alexnet(input)
+classifier = Dense(1,
+                   activation='sigmoid',
+                   name='classifier',
+                   W_regularizer=l2(0.001))(filtered_img)
+
+model = Model(input=input,output=classifier)
+
 sgd = SGD(lr=.1, decay=1.e-6, momentum=0.9, nesterov=False)
-model.compile(optimizer=sgd, loss='binary_crossentropy')
+model.compile(optimizer=sgd, loss='binary_crossentropy',metrics=["accuracy"])
 
 
-batch_size = 16
+batch_size = 64
        
 
 
 gen_train = ImageGenerator(train_set,227,
-                           batch_per_cache=100,
+                           batch_per_cache=25,
                            batch_size=batch_size,
                            shuffle=False)
 gen_test = ImageGenerator(test_set,227,
-                          batch_per_cache=100,
+                          batch_per_cache=25,
                           batch_size=batch_size,
                           shuffle=True)
+
 
 model.fit_generator(gen_train,
                     samples_per_epoch=len(train_files),
                     nb_epoch=10,
                     validation_data=gen_test,
-                    nb_val_samples=len(test_files),
-                    show_accuracy=True)
+                    nb_val_samples=len(test_files))
  
 
 
