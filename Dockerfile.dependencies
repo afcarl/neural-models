@@ -1,4 +1,4 @@
-FROM kaixhin/cuda-theano:7.5
+FROM kaixhin/cuda-theano:latest
 MAINTAINER Didier Marin <marin@heuritech.com>
 
 RUN apt-get clean \
