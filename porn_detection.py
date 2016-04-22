@@ -48,7 +48,7 @@ def detect():
       cachedresults = []
       for (fileid, file) in request.files.items():
         hash = hashlib.sha256(file.read()).digest()
-        prob = cache.get(hash)
+        prob = cache.get(hash) if caching else None
         if prob:
           cachedresults.append((fileid, prob))
         else:
@@ -66,8 +66,9 @@ def detect():
           y = model.predict(X)
           for tmp in tempfiles:
             tmp.close()
-        for (hash, prob) in zip(filehashes, y):
-          cache.set(hash, prob, CACHE_TIMEOUT)
+        if caching:
+          for (hash, prob) in zip(filehashes, y):
+            cache.set(hash, prob, CACHE_TIMEOUT)
         probs = [{"id": fileid, "prob": prob[0]} for (fileid, prob) in zip(fileids, y) + cachedresults]
         return json.dumps({ "results": probs })
       else:
@@ -78,13 +79,17 @@ def detect():
       return "{}", 500
 
 if __name__ == "__main__":
-    if len(sys.argv) != 4:
-        print "Usage: "+sys.argv[0]+" HOST PORT PATH_TO_PORNH5"
+    if len(sys.argv) < 4:
+        print "Usage: "+sys.argv[0]+" HOST PORT PATH_TO_PORNH5 CACHING"
         sys.exit(1)
 
     pornH5Path = sys.argv[3]
     if not pornH5Path.endswith('porn.h5'):
         pornH5Path = os.path.join(pornH5Path, 'porn.h5')
+
+    caching = False
+    if len(sys.argv) > 4:
+        caching = bool(sys.argv[4])
 
     model = convnet('alexnet', output_layer='dense_2')
     model.add(Dense(1, activation='sigmoid', name='classifier'))
