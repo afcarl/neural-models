@@ -65,7 +65,7 @@ def convnet(network, weights_path=None, output_layer=None, convolutionize=False,
         Dict of feature layers, asked for in output_layers.
     """
 
-    
+    pdb.set_trace()
     # Select the network
     if network == 'vgg_16':
         model = VGG_16(weights_path)
@@ -91,20 +91,27 @@ def convnet(network, weights_path=None, output_layer=None, convolutionize=False,
             model.layers.pop()
 
     if convolutionize:
-        conv_stride = (5, 5)
+        conv_stride = (1, 1)
         mod_conv = Sequential()
 
         first_dense = True
         for layer in model.layers:
             layer_type = layer.get_config()['name']
             if  layer_type == "Dense":
+                #pdb.set_trace()
                 n_previous_filters = mod_conv.output_shape[1]
                 W, b = layer.get_weights()
+                new_W = np.transpose(W, axes=(1,0))
                 new_size = int(np.sqrt(W.shape[0]/n_previous_filters))
-                new_W = W.reshape((W.shape[1],
-                                   n_previous_filters,
-                                   new_size,
-                                   new_size))
+                new_W = new_W.reshape((W.shape[1],
+                                       n_previous_filters,
+                                       new_size,new_size))
+                # new_W = new_W.reshape((W.shape[1],
+                #                        new_size,new_size,
+                #                        n_previous_filters))
+                # new_W = np.transpose(new_W,axes=((0,3,2,1)))
+                # new_W = new_W[:,::,::-1,::-1]
+                #pdb.set_trace()
                 if first_dense:
                     subsample = conv_stride
                 else:
@@ -166,9 +173,9 @@ def VGG_16(weights_path=None):
     model.add(Convolution2D(512, 3, 3, activation='relu', name='conv5_3'))
     model.add(MaxPooling2D((2,2), strides=(2,2)))
 
-    model.add(Flatten())
+    model.add(Flatten(name="flatten"))
     model.add(Dense(4096, activation='relu', name='dense_1'))
-    model.add(Dropout(0.5))
+    model.add(Dropout(0.5, name='dropout_1'))
     model.add(Dense(4096, activation='relu', name='dense_2'))
     model.add(Dropout(0.5))
     model.add(Dense(1000, name='softmax', activation='softmax'))
@@ -283,7 +290,7 @@ def AlexNet(weights_path=None):
     model.add(MaxPooling2D((3, 3), strides=(2,2)))
 
    
-    model.add(Flatten())
+    model.add(Flatten(name='flatten'))
     model.add(Dense(4096, activation='relu', name='dense_1'))
     model.add(Dropout(0.5))
 
@@ -408,13 +415,16 @@ def deprocess_image(x):
 
 
 if __name__ == "__main__":
-
+    pdb.set_trace()
     # base_image = K.variable(preprocess_image('~/Pictures/cat.jpg'))
-    im = preprocess_image_batch2(['cat.jpg'])
+    im = preprocess_image_batch(['cat.jpg'], 224, 224)
 
     # Test pretrained model
-    #model = convnet('alexnet', weights_path='weights/alexnet_weights.h5',convolutionize=False)
-    model = load_coeff()
+    model = convnet('vgg_16', weights_path='weights/vgg16_weights.h5',
+                    convolutionize=False, output_layer="conv1_1")
+    # model = VGG_16()
+    # model = convnet('vgg_16', weights_path='weights/vgg16_weights.h5', output_layer="conv1_1")
+    #model = load_coeff()
     sgd = SGD(lr=0.1, decay=1e-6, momentum=0.9, nesterov=True)
     model.compile(optimizer=sgd, loss='categorical_crossentropy')
     out = model.predict(im)
