@@ -1,10 +1,6 @@
-import sys
-
-sys.path.insert(0, "/home/lblier/.local/lib/python2.7/site-packages")
-
 import numpy as np
-from os import listdir
-from os.path import isfile, join
+
+from os.path import isfile, join, splitext, basename
 
 import h5py
 
@@ -27,24 +23,8 @@ import random
 import time
 import pdb
 
-import logging
-logging.basicConfig(filename='example.log',level=logging.DEBUG)
-logging.debug('This message should go to the log file')
-logging.info('So should this')
-logging.warning('And this, too')
-
-##########################
-####### PARAMETERS #######
-##########################
-CLASSIF_FOLDER = "myclassif/"
 
 
-##########################
-##########################
-
-def folder2labels(path):
-    #TODO
-    pass
 
 
 def split_traintest(data):
@@ -56,55 +36,25 @@ def split_traintest(data):
 
 
 
-def save_img_h5(data, h5_file, cache_size=1600):
-    f = h5py.File(h5_file, "w")
-    files = [name for (name,l) in data]
-    labels = np.array([l for (name,l) in data])
-    n_samples = len(data)
 
-    lab_dset = f.create_dataset("labels", data=labels,compression="gzip")
-    
-    img_dset = f.create_dataset("imgs", (n_samples,3,256,256),
-                                dtype='float32',
-                                compression="gzip")
-    n_step = len(data)/cache_size
-    if n_step % cache_size != 0:
-        n_step += 1
-    for j in range(n_step):
-        print(str(j)+"/"+str(n_step))
-        X = preprocess_image_batch(files[j*cache_size:(j+1)*cache_size])
-        img_dset[j*cache_size:(j+1)*cache_size] = X
-    f.close()
 
-def preprocessing(data, folder_path):
-    data_train, data_test = split_traintest(data)
-    train_files = join(folder_path, "train_files.pkl")
-    test_files = join(folder_path, "test_files.pkl")
-    train_set = join(folder_path,"train_set.h5")
-    test_set = join(folder_path,"test_set.h5")
-    pkl.dump(data_train, open(train_files,"wb"))
-    pkl.dump(data_test, open(test_files, "wb"))
-    save_img_h5(data_train, train_set)
-    save_img_h5(data_test, test_set)
-    return train_files, test_files,train_set, test_set
         
     
 
 def load_img_h5(h5dataset,start,stop,out=None):
     data = h5dataset[start:stop]
-    logging.debug("load_img_h5, data shape : "+str(data.shape))
     if not out is None:
-        out.append(data)
-        logging.debug("len out : "+str(len(out)))
-        
+        out.append(data)        
     else:
         return data
 
 
 
 
+        
+    
 def ImageGenerator(data, img_size, batch_per_cache=100, batch_size=16,
-                   shuffle=False,**kwargs):
+                   shuffle=False, **kwargs):
     """
     Generator for the data.
     It splits the data into large caches, and then use keras' ImageDataGenerator
@@ -129,25 +79,14 @@ def ImageGenerator(data, img_size, batch_per_cache=100, batch_size=16,
     
     datagen = ImageDataGenerator(kwargs)
 
-    preloaded = (type(data) == str)
     cache_size = batch_size*batch_per_cache
 
-    if preloaded:
-        f = h5py.File(data, "r")
-        imgs,labels = f["imgs"],f["labels"]
-        n_samples = labels.shape[0]
-    else:
-        files = [f for (f,l) in data]
-        labels = np.array([l for (f,l) in data])
-        n_samples = len(data)
-
+    f = h5py.File(data, "r")
+    imgs,labels = f["imgs"],f["labels"]
+    n_samples = labels.shape[0]
+   
     n_labels = len(set(labels))
-    if n_labels <= 1:
-        raise ValueError("Can't learn to classify with only one class")
-    elif n_labels == 2:
-        Y = labels
-    else:
-        Y = np_utils.to_categorical(labels, n_labels)
+    Y = np_utils.to_categorical(labels, n_labels)
     
     n_step = len(data)/cache_size
     if len(data) % cache_size != 0:
@@ -158,31 +97,19 @@ def ImageGenerator(data, img_size, batch_per_cache=100, batch_size=16,
     j = permutation[k]
 
     start,stop = j*cache_size,(j+1)*cache_size
-    if preloaded:
-        X_cache = load_img_h5(imgs,start,stop)
-    else:
-        X_cache = preprocess_image_batch2(files[start:stop])
-    
+    X_cache = load_img_h5(imgs,start,stop)
     Y_cache = Y[start:stop]
+
+    
     datagen.fit(X_cache)
 
     while True:
-        logging.debug("Beginning the loop")
-        logging.debug("Cache shape : "+str(X_cache.shape))
-        logging.debug(str((X_cache.shape, Y_cache.shape)))
         k = (k + 1)  % n_step
         j = permutation[k]
         out_xcache = []
         start,stop = j*cache_size,(j+1)*cache_size
-        if preloaded:
-            t_xcache = Thread(target=load_img_h5,
-                              args=(imgs,start,stop,out_xcache))
-                              #kwargs={"out":out_xcache})
-        else:
-            t_xcache = Thread(target=preprocess_image_batch,
-                              args=(files[start:stop], (256, 256)),
-                              #      out_xcache))
-                              kwargs={"out":out_xcache})
+        t_xcache = Thread(target=load_img_h5,
+                          args=(imgs,start,stop,out_xcache))
         t_xcache.daemon=True
         t_xcache.start()
         gen = datagen.flow(X_cache,Y_cache,
@@ -197,3 +124,80 @@ def ImageGenerator(data, img_size, batch_per_cache=100, batch_size=16,
         t_xcache.join()
         X_cache = out_xcache[0]
         Y_cache = Y[j*cache_size:(j+1)*cache_size]
+
+
+
+
+def main(model_list, data, weights_path, test_set = None,
+         batch_size=32, batch_per_cache=100, shuffle=False, nb_epoch=10):
+
+    f = h5py.File(data, "r")
+    labels = f["labels"]
+    num_train = labels.shape[0]
+    f.close()
+    
+    gen_train = ImageGenerator(train_set,227, batch_per_cache=batch_per_cache,
+                               batch_size=batch_size, shuffle=shuffle)
+
+    if test_set != None:
+        f = h5py.File(test_set, "r")
+        labels = f["labels"]
+        num_test = labels.shape[0]
+        f.close()
+        gen_test = ImageGenerator(test_set,227, batch_per_cache=25,
+                                  batch_size=batch_size, shuffle=False)
+    else:
+        num_test = None
+
+
+        
+    for model_file in model_list:
+        print("Training model : "+model_file)
+        imp.load_source("convnet", model_file)
+        from convnet import model
+        model.fit_generator(gen_train,
+                            samples_per_epoch=num_train,
+                            nb_epoch=nb_epoch,
+                            validation_data=gen_test,
+                            nb_val_samples=num_test)
+
+        model.save_weights(join(weights_path, "weights_"+ \
+                                splitext(basename(model_file))[0] + ".h5"))
+
+        print "---------------------------------------"
+        print "---------------------------------------"
+
+        
+
+        
+
+        
+        
+    
+    
+
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser()
+    parser.add_argument("MODELS", nargs="+",
+                        help = ("Model scripts. They should all define a model"
+                                "variable"))
+    parser.add_argument("DATA_TRAIN", help = "h5 file containing preprocessed train images")
+    parser.add_argument("WEIGHTSPATH", help="path to folder for trained weights")
+
+    parser.add_argument("-ts", "--testset", default=None,
+                        help = "h5 file containing preprocessed test images")
+    parser.add_argument("-bs", "--batchsize", type=int, default=32,
+                        help="Batch size. Default : 32")
+    parser.add_argument("-bpc", "--batchpercache", type=int, default=100,
+                        help="Number of batch in a cache. Default : 100")
+    parser.add_argument("-sh", "--shuffle", action="store_true",
+                        help="Shuffle the train set while training")
+    parser.add_argument("-ep", "--epoch", type=int, default=10,
+                        help="Number of epoch"
+    
+    args = parser.parse_args()
+
+    main(args.MODELS, args.DATA, args.WEIGHTSPATH, test_set = args.testset,
+         batch_size=args.batch_size, batch_per_cache=args.batchpercache,
+         shuffle=args.shuffle, n_epoch=args.epoch)
