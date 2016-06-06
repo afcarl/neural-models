@@ -4,6 +4,7 @@ from os.path import isfile, join, splitext, basename
 import h5py
 
 from sklearn.cross_validation import StratifiedShuffleSplit
+from progressbar import Percentage, Bar, ETA, AdaptiveETA, ProgressBar
 
 def folder2labels(path):
     #TODO
@@ -17,6 +18,7 @@ def preprocessing(data, train_set_h5, test_set_h5=None):
     else:
         data_train, data_test = split_traintest(data)
 
+    print("Preprocessing train set ...")
     save_img_h5(data_train, train_set_h5)
 
     if test_set_h5 != None:
@@ -24,7 +26,7 @@ def preprocessing(data, train_set_h5, test_set_h5=None):
 
 
 
-def save_img_h5(data, h5_file, cache_size=1600):
+def save_img_h5(data, h5_file, cache_size=100):
     f = h5py.File(h5_file, "w")
     files = [name for (name,l) in data]
     labels = np.array([l for (name,l) in data])
@@ -40,10 +42,24 @@ def save_img_h5(data, h5_file, cache_size=1600):
     n_step = len(data)/cache_size
     if n_step % cache_size != 0:
         n_step += 1
+
+        
+    ############# Progressbar ################
+    widgets = [Percentage(),
+               ' ', Bar(),
+               ' ', ETA(),
+               ' ', AdaptiveETA()]
+    pbar = ProgressBar(widgets=widgets, maxval=len(data))
+    pbar.start()
+    #########################################
+    
     for j in range(n_step):
         print(str(j)+"/"+str(n_step))
         X = preprocess_image_batch(files[j*cache_size:(j+1)*cache_size])
         img_dset[j*cache_size:(j+1)*cache_size] = X
+        pbar.update(j*cache_size)
+        
+    pbar.finish()
     f.close()
 
 
@@ -69,5 +85,8 @@ if __name__ == "__main__":
                                 "train and test set")
                         )
     args = parser.arg_parser()
+
+
+    
     main(args.DATA, args.H5PATH, test_set = args.testset)
     
