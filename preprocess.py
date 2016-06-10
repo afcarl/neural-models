@@ -1,4 +1,7 @@
+#!/usr/bin/env python2
+
 import numpy as np
+import argparse
 
 from os.path import isfile, join, splitext, basename
 import h5py
@@ -6,27 +9,40 @@ import h5py
 from sklearn.cross_validation import StratifiedShuffleSplit
 from progressbar import Percentage, Bar, ETA, AdaptiveETA, ProgressBar
 
+from convnetskeras.convnets import preprocess_image_batch
+
 def folder2labels(path):
     #TODO
     pass
 
 
+def split_traintest(data):
+    sss = StratifiedShuffleSplit([l for f,l in data])
+    for train_index, test_index in sss:
+        data_train = [data[i] for i in train_index]
+        data_test  = [data[i] for i in  test_index]
+    return data_train, data_test
+
+
+
+
 
 def preprocessing(data, train_set_h5, test_set_h5=None):
-    if test_set == None:
+    if test_set_h5 == None:
         data_train = data
     else:
         data_train, data_test = split_traintest(data)
 
     print("Preprocessing train set ...")
-    save_img_h5(data_train, train_set_h5)
+    save_img_h5(data_train, train_set_h5, img_size=(256,256))
 
     if test_set_h5 != None:
-        save_img_h5(data_test, test_set_h5)
+        print("Preprocessing test set ...")
+        save_img_h5(data_test, test_set_h5, img_size=(256,256))
 
 
 
-def save_img_h5(data, h5_file, cache_size=100):
+def save_img_h5(data, h5_file, cache_size=30, img_size=None):
     f = h5py.File(h5_file, "w")
     files = [name for (name,l) in data]
     labels = np.array([l for (name,l) in data])
@@ -54,8 +70,8 @@ def save_img_h5(data, h5_file, cache_size=100):
     #########################################
     
     for j in range(n_step):
-        print(str(j)+"/"+str(n_step))
-        X = preprocess_image_batch(files[j*cache_size:(j+1)*cache_size])
+        X = preprocess_image_batch(files[j*cache_size:(j+1)*cache_size],
+                                   img_size=img_size)
         img_dset[j*cache_size:(j+1)*cache_size] = X
         pbar.update(j*cache_size)
         
@@ -64,7 +80,7 @@ def save_img_h5(data, h5_file, cache_size=100):
 
 
 
-def main(data_file, h5path, test_set=None):
+def main(data_file, train_set, test_set=None):
     data = []
     with open(data_file, "r") as f:
         for l in f:
@@ -77,14 +93,14 @@ def main(data_file, h5path, test_set=None):
     
 
 if __name__ == "__main__":
-    parser = argparser.ArgumentParser()
+    parser = argparse.ArgumentParser()
     parser.add_argument("DATA", help = "CSV file containing images and labels")
     parser.add_argument("H5PATH", help= "Path to the preprocessed data")
     parser.add_argument("-ts", "--testset", default=None,
                         help = ("If path is given, it splits the data into "
                                 "train and test set")
                         )
-    args = parser.arg_parser()
+    args = parser.parse_args()
 
 
     
