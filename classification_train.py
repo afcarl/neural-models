@@ -32,10 +32,26 @@ def load_labels_csv(csvdataset):
     pass
 
 
-        
+def transform_img(img, shape=(256,256), random_crop = False):
+    img_xshape, img_yshape = img.shape[2], img.shape[3]
+    shape_x, shape_y = shape
+    mean1,mean2 = img.shape[2], img.shape[3]
+
+    if random_crop:
+        offset_x = np.random.randint(0, img_xshape - shape_x)
+        offset_y = np.random.randint(0, img_yshape - shape_y)
+    else:
+        offset_x = (img_xshape - shape_x)/2
+        offset_y = (img_yshape - shape_y)/2
+
+    img_croped = img[:,:,offset_x:offset_x+shape_x,offset_y:offset_y+shape_y]
+    return img_croped
+    
+    
+    
     
 def ImageGenerator(data, img_size, batch_per_cache=100, batch_size=16,
-                   shuffle=False, mode="h5", **kwargs):
+                   shuffle=False, mode="h5", dataaugmentation=False, **kwargs):
     """
     Generator for the data.
     It splits the data into large caches, and then use keras' ImageDataGenerator
@@ -59,7 +75,11 @@ def ImageGenerator(data, img_size, batch_per_cache=100, batch_size=16,
 
     mode: h5 or csv
     """
-    datagen = ImageDataGenerator(kwargs)
+    if not dataaugmentation:
+        datagen = ImageDataGenerator(kwargs)
+    else:
+        datagen = ImageDataGenerator(horizontal_flip = True,
+                                     vertical_flip = True)
 
     cache_size = batch_size*batch_per_cache
 
@@ -96,9 +116,10 @@ def ImageGenerator(data, img_size, batch_per_cache=100, batch_size=16,
         gen = datagen.flow(X_cache, Y_cache, batch_size, shuffle=shuffle)
         while True:
             x, y = next(gen)
-            mean1,mean2 = x.shape[2], x.shape[3]
-            yield x[:,:,(mean1-img_size)/2:(mean1+img_size)/2,
-                    (mean2-img_size)/2:(mean2+img_size)/2], y
+            x_transformed = transform_img(x, shape=(img_size,img_size),
+                                          random_crop = True)
+            yield x_transformed, y
+
             
             
 
@@ -146,15 +167,18 @@ def evaluate_model(model, gen_test, num_test, batch_size):
         Y_pred[i*batch_size:(i+1)*batch_size] = y_pred
 
         i += 1
-
-    print confusion_matrix(Y_true, Y_pred)
+    c_m = confusion_matrix(Y_true, Y_pred)
+    print c_m
+    fdr = float(c_m[0,1]) / max(1., c_m[0,1] + c_m[1,1])
+    return fdr, Y_true, Y_pred
+    
 
     
 
 
 def main(model_list, train_set, weights_path, test_set = None,
          batch_size=32, batch_per_cache=100, shuffle=False, nb_epoch=10,
-         use_class_weight=False, verbose=False):
+         use_class_weight=False, dataaugmentation=False, verbose=False):
 
     f = h5py.File(train_set, "r")
     labels = f["labels"]
@@ -183,7 +207,8 @@ def main(model_list, train_set, weights_path, test_set = None,
     f.close()
     
     gen_train = ImageGenerator(train_set,224, batch_per_cache=batch_per_cache,
-                               batch_size=batch_size, shuffle=shuffle)
+                               batch_size=batch_size, shuffle=shuffle,
+                               dataaugmentation=dataaugmentation)
 
     num_test = None
     if test_set != None:
@@ -196,23 +221,41 @@ def main(model_list, train_set, weights_path, test_set = None,
         
 
 
-        
+    all_stats = {}    
     for model_file in model_list:
         print("Training model : "+model_file)
         imp.load_source("convnet", model_file)
         from convnet import model
-        model.fit_generator(gen_train,
-                            samples_per_epoch=num_train,
-                            nb_epoch=nb_epoch,
-                            validation_data=gen_test,
-                            nb_val_samples=num_test,
-                            class_weight=class_weight)
+        history = model.fit_generator(gen_train,
+                                      samples_per_epoch=num_train,
+                                      nb_epoch=nb_epoch,
+                                      validation_data=gen_test,
+                                      nb_val_samples=num_test,
+                                      class_weight=class_weight)
+        
 
         print("Evaluate train (on an extract) : ")
-        evaluate_model(model, gen_train, 1024, batch_size)
+        fdr_train, _ , _ = evaluate_model(model, gen_train, 1024, batch_size)
         
         print("Evaluate test : ")
-        evaluate_model(model, gen_test, num_test, batch_size)
+        fdr_test, _ , _ = evaluate_model(model, gen_test, num_test, batch_size)
+
+        all_stats[model_file] = history.history
+        all_stats[model_file]["fdr_train"] = fdr_train
+        all_stats[model_file]["fdr_test"] = fdr_test
+
+        print "Stats summary"
+        for m_f, stats in all_stats.iteritems():
+            print(m_f)
+            stats2str = ""
+            for k, s in stats.iteritems():
+                stats2str += k + " : "
+                if type(s) == list:
+                    stats2str += str(s[-1])
+                else:
+                    stats2str += str(s)
+                stats2str += " || "
+            print(stats2str)
         
 
         model.save_weights(join(weights_path, "weights_"+ \
@@ -255,6 +298,8 @@ if __name__ == "__main__":
                               "the weight of the loss will be proportionnal with the number "
                               "of pictures in a class")
                         )
+    parser.add_argument("-da", "--dataaugmentation", action="store_true",
+                        help=("Activate the data augmentation (random flip, rotation, zoom)"))
     parser.add_argument("-v", "--verbose", action="store_true")
     
     args = parser.parse_args()
@@ -262,4 +307,4 @@ if __name__ == "__main__":
     main(args.MODELS, args.DATA_TRAIN, args.WEIGHTSPATH, test_set=args.testset,
          batch_size=args.batchsize, batch_per_cache=args.batchpercache,
          shuffle=args.shuffle, nb_epoch=args.epoch, use_class_weight=args.weightsclass,
-         verbose=args.verbose)
+         dataaugmentation=args.dataaugmentation, verbose=args.verbose)

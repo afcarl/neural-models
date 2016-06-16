@@ -14,7 +14,8 @@ import ipdb
     
 
 
-def main(model_file, img_list, weights_path, batch_size=32, batch_per_cache=None):
+def main(model_file, img_list, weights_path, outputFile,
+         batch_size=32, batch_per_cache=None):
     imp.load_source("convnet", model_file)
     from convnet import model
     model.load_weights(weights_path)
@@ -28,7 +29,7 @@ def main(model_file, img_list, weights_path, batch_size=32, batch_per_cache=None
     output = []
     i = 0
     #while i < len(data):
-    f = open("img_classify.csv", "w")
+    f = open(outputFile, "w")
     for i in range(0, len(data), batch_size):
         print i
         try:
@@ -62,6 +63,7 @@ if __name__ == "__main__":
                                 "variable"))
     parser.add_argument("DATA", help = "jpg files to classify")
     parser.add_argument("WEIGHTSPATH", help="path to folder for trained weights")
+    parser.add_argument("OUTPUT", help="Output Csv file")
 
     
     parser.add_argument("-bs", "--batchsize", type=int, default=32,
@@ -71,5 +73,10 @@ if __name__ == "__main__":
     
     args = parser.parse_args()
 
-    main(args.MODELS, args.DATA, args.WEIGHTSPATH,
+    main(args.MODELS, args.DATA, args.WEIGHTSPATH, args.OUTPUT,
          batch_size=args.batchsize, batch_per_cache=args.batchpercache)
+
+
+
+
+

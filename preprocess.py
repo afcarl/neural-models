@@ -16,8 +16,8 @@ def folder2labels(path):
     pass
 
 
-def split_traintest(data):
-    sss = StratifiedShuffleSplit([l for f,l in data])
+def split_traintest(data, splitsize=.1):
+    sss = StratifiedShuffleSplit([l for f,l in data], test_size=splitsize)
     for train_index, test_index in sss:
         data_train = [data[i] for i in train_index]
         data_test  = [data[i] for i in  test_index]
@@ -27,11 +27,11 @@ def split_traintest(data):
 
 
 
-def preprocessing(data, train_set_h5, test_set_h5=None):
+def preprocessing(data, train_set_h5, test_set_h5=None, splitsize=.1):
     if test_set_h5 == None:
         data_train = data
     else:
-        data_train, data_test = split_traintest(data)
+        data_train, data_test = split_traintest(data, splitsize=splitsize)
 
     print("Preprocessing train set ...")
     save_img_h5(data_train, train_set_h5, img_size=(256,256))
@@ -80,7 +80,7 @@ def save_img_h5(data, h5_file, cache_size=30, img_size=None):
 
 
 
-def main(data_file, train_set, test_set=None):
+def main(data_file, train_set, test_set=None, splitsize=.1):
     data = []
     with open(data_file, "r") as f:
         for l in f:
@@ -88,7 +88,7 @@ def main(data_file, train_set, test_set=None):
             label = int(label[:-1])
             data.append((path, label))
 
-    preprocessing(data, train_set, test_set_h5 = test_set)
+    preprocessing(data, train_set, test_set_h5 = test_set, splitsize=splitsize)
     
     
 
@@ -100,9 +100,11 @@ if __name__ == "__main__":
                         help = ("If path is given, it splits the data into "
                                 "train and test set")
                         )
+    parser.add_argument("-ss", "--splitsize", type=float, default=.1,
+                        help="Size of the test set. Default : 0.1")
     args = parser.parse_args()
 
 
     
-    main(args.DATA, args.H5PATH, test_set = args.testset)
+    main(args.DATA, args.H5PATH, test_set=args.testset, splitsize=args.splitsize)
     
